@@ -1,0 +1,45 @@
+#  Dashboard Analisis E-Commerce Public Data
+
+## Tentang Proyek
+Proyek ini merupakan hasil akhir dari perjalanan belajar saya dalam mengeksplorasi data mentah menjadi informasi yang berharga. Dataset yang digunakan berasal dari **Olist E-Commerce**, sebuah platform perdagangan di Brasil. Melalui pengerjaan ini, saya menerapkan siklus analisis data mulai dari *Data Wrangling*, *Exploratory Data Analysis* (EDA), hingga penyajian visual melalui dashboard interaktif.
+
+## 🎯 Tujuan Bisnis
+Proyek ini dirancang untuk menjawab beberapa pertanyaan strategis:
+- **Demografi:** Mengetahui konsentrasi pasar berdasarkan lokasi geografis pelanggan.
+- **Efisiensi:** Mengukur seberapa baik layanan pengiriman sampai ke tangan konsumen.
+- **Produktivitas:** Mengidentifikasi kategori barang yang menjadi tulang punggung pendapatan perusahaan.
+- **Loyalitas:** Mengenali perilaku belanja pelanggan melalui pemodelan RFM.
+
+---
+
+##  Fitur Utama Dashboard
+Dashboard ini tidak hanya statis, tetapi memiliki beberapa fitur interaktif:
+* **Filter Rentang Waktu:** Pengguna dapat menentukan periode data yang ingin dianalisis melalui sidebar.
+* **Metrik Real-time:** Menampilkan angka total pesanan dan pendapatan secara instan berdasarkan filter yang dipilih.
+* **Visualisasi Komparatif:** Menggunakan skema warna yang menyoroti kategori terbaik (Top Performing) untuk mempercepat pengambilan keputusan.
+* **Analisis Lanjutan:** Segmentasi RFM yang sudah disederhanakan untuk audiens bisnis.
+
+---
+
+## 📂 Panduan Struktur Direktori
+Penyusunan file dilakukan secara sistematis untuk memudahkan pemeliharaan:
+- `dashboard/`:
+    - `dashboard.py`: Script utama aplikasi Streamlit dengan logika visualisasi.
+    - `all_data.csv`: Versi dataset yang sudah dibersihkan dan dipangkas (thinning) untuk performa dashboard yang cepat.
+- `data/`: Koleksi file CSV mentah sebagai sumber data awal.
+- `Proyek_Analisis_Data.ipynb`: Dokumentasi teknis alur analisis (Data Cleaning, Outlier Handling, dll).
+- `requirements.txt`: Daftar pustaka Python yang wajib ada di environment.
+- `url.txt`: Tautan langsung menuju dashboard online.
+
+---
+
+## 🛠️ Instalasi & Persiapan Lokal
+
+Jika kamu ingin bereksperimen dengan dashboard ini di komputer pribadimu:
+
+1. **Siapkan Environment:**
+   Gunakan Anaconda atau Python virtual environment.
+   ```bash
+   conda create --name olist-analysis python=3.9
+   conda activate olist-analysis
+   pip install -r requirements.txt
