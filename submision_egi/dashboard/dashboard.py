@@ -47,41 +47,37 @@ if all_df is not None:
 
     st.markdown("---")
 
-    # --- SOAL 1: ANALISIS PROFITABILITAS WILAYAH & PRODUK ---
+   # --- SOAL 1: PERBAIKAN URUTAN (SP PASTI DI ATAS) ---
     st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
-    st.markdown("Kategori produk dengan pendapatan tertinggi di 5 negara bagian teraktif.")
-
-    # 1. Cari Top 5 State
-    top_5_states = main_df.groupby('customer_state').order_id.nunique().sort_values(ascending=False).head(5).index
-    top_states_df = main_df[main_df['customer_state'].isin(top_5_states)]
     
-    # 2. Identifikasi kolom kategori
+    # 1. Hitung TOTAL REVENUE per state dulu untuk pengurutan yang benar
+    state_revenue_order = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
+    
+    # 2. Filter data hanya untuk 5 state tersebut
+    top_states_df = main_df[main_df['customer_state'].isin(state_revenue_order)]
+    
+    # 3. Cari Produk terbaik di masing-masing state
     cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
+    product_revenue_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
     
-    # 3. Cari Produk terbaik per state
-    rev_state_cat = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
-    top_product_per_state = rev_state_cat.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1).reset_index(drop=True)
+    # 4. Ambil kategori tertinggi per state dan URUTKAN sesuai urutan revenue state (SP, RJ, MG, dst)
+    top_product_per_state = product_revenue_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1)
+    
+    # Trik agar urutan grafiknya tetap SP di atas:
+    top_product_per_state['customer_state'] = pd.Categorical(top_product_per_state['customer_state'], categories=state_revenue_order, ordered=True)
+    top_product_per_state = top_product_per_state.sort_values('customer_state')
 
-    col_chart1, col_desc1 = st.columns([2, 1])
-
-    with col_chart1:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(x='price', y='customer_state', data=top_product_per_state, palette='viridis', ax=ax)
-        ax.set_title("Revenue Tertinggi per Negara Bagian", fontsize=14)
-        # Add labels
-        for i, p in enumerate(ax.patches):
-            ax.annotate(f" {top_product_per_state[cat_col].iloc[i]}", 
-                        (p.get_width(), p.get_y() + p.get_height()/2), 
-                        va='center', fontsize=10, fontweight='bold')
-        st.pyplot(fig)
-
-    with col_desc1:
-        st.write("### 📌 Insight Wilayah")
-        for index, row in top_product_per_state.iterrows():
-            st.write(f"- Di **{row['customer_state']}**, kategori **{row[cat_col]}** adalah penyumbang terbesar.")
-        st.warning(f"**Kesimpulan:** Wilayah dengan revenue tertinggi adalah {top_product_per_state.customer_state.iloc[0]}.")
-
-    st.markdown("---")
+    # --- VISUALISASI ---
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.barplot(x='price', y='customer_state', data=top_product_per_state, palette='viridis', ax=ax)
+    
+    for i, p in enumerate(ax.patches):
+        ax.annotate(f" {top_product_per_state[cat_col].iloc[i]}", 
+                    (p.get_width(), p.get_y() + p.get_height()/2), 
+                    va='center', fontsize=10, fontweight='bold')
+    
+    ax.set_title("Total Revenue Negara Bagian & Kategori Produk Unggulannya", fontsize=14)
+    st.pyplot(fig)
 
     # --- SOAL 2: ANALISIS AOV PADA PRODUK UNGGULAN ---
     st.header("2. Analisis AOV pada Kategori Produk Unggulan")
