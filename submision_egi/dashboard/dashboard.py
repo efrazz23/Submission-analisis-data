@@ -97,7 +97,14 @@ def create_rfm_df(df):
     return rfm_df
 
 #load berkas all_data.csv sebagai sebuah DataFrame
-all_df = pd.read_csv("all_data.csv")
+import os
+
+# Mendapatkan jalur folder tempat file dashboard.py ini berada
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Menggabungkan jalur folder dengan nama file csv
+file_path = os.path.join(current_dir, "all_data.csv")
+
+all_df = pd.read_csv(file_path)
 
 # Mengubah tipe data menjadi datetime
 datetime_columns = ["order_purchase_timestamp", "order_delivered_customer_date"]
