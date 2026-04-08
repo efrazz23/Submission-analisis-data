@@ -46,38 +46,55 @@ if all_df is not None:
 
     st.markdown("---")
 
-    # --- SOAL 1: KATEGORI TERBAIK vs TERBURUK ---
-    st.header("1. Bagaimana Performa Kategori Produk?")
+   # --- SOAL 1: ANALISIS PROFITABILITAS WILAYAH & PRODUK ---
+    st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
+    st.markdown("Analisis kategori produk dengan pendapatan tertinggi di 5 negara bagian teraktif.")
+
+    # 1. Cari Top 5 State berdasarkan jumlah transaksi (sesuai soal)
+    top_5_states = main_df.groupby('customer_state').order_id.nunique().sort_values(ascending=False).head(5).index
     
-    col_left, col_right = st.columns(2)
+    # 2. Filter data hanya untuk 5 state tersebut
+    top_states_df = main_df[main_df['customer_state'].isin(top_5_states)]
     
-    # Cari kolom kategori yang tersedia
+    # 3. Cari Produk terbaik di masing-masing state tersebut
+    # Gunakan 'product_category_name_english' atau 'product_category_name'
     cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
     
-    # Hitung Top & Bottom
-    sum_order_items_df = main_df.groupby(cat_col).order_id.nunique().sort_values(ascending=False).reset_index()
+    product_revenue_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
+    
+    # Ambil yang tertinggi saja per state
+    top_product_per_state = product_revenue_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1).reset_index(drop=True)
 
-    with col_left:
-        st.subheader("Top 5 Kategori")
-        fig, ax = plt.subplots(figsize=(8, 5))
-        sns.barplot(x="order_id", y=cat_col, data=sum_order_items_df.head(5), palette="Blues_r", ax=ax)
-        ax.set_xlabel("Jumlah Pesanan")
-        ax.set_ylabel(None)
+    # --- VISUALISASI SOAL 1 ---
+    col_chart, col_desc = st.columns([2, 1]) # Membagi layout: 2 bagian grafik, 1 bagian penjelasan
+
+    with col_chart:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.barplot(
+            x='price', 
+            y='customer_state', 
+            data=top_product_per_state, 
+            palette='viridis',
+            ax=ax
+        )
+        ax.set_title("Revenue Tertinggi per Negara Bagian (Top 5 States)", fontsize=14)
+        ax.set_xlabel("Total Revenue (BRL)")
+        ax.set_ylabel("State")
+        
+        # Tambahkan label nama produk langsung di grafik agar keren
+        for i, p in enumerate(ax.patches):
+            ax.annotate(f" {top_product_per_state[cat_col].iloc[i]}", 
+                        (p.get_width(), p.get_y() + p.get_height()/2), 
+                        va='center', fontsize=10, fontweight='bold')
+        
         st.pyplot(fig)
 
-    with col_right:
-        st.subheader("Bottom 5 Kategori")
-        fig, ax = plt.subplots(figsize=(8, 5))
-        sns.barplot(x="order_id", y=cat_col, data=sum_order_items_df.sort_values(by="order_id", ascending=True).head(5), palette="Reds", ax=ax)
-        ax.set_xlabel("Jumlah Pesanan")
-        ax.set_ylabel(None)
-        st.pyplot(fig)
-
-    st.warning("**Kesimpulan Soal 1:** Kategori produk yang paling mendominasi adalah **{}**, sedangkan kategori dengan peminat paling sedikit adalah **{}**.".format(
-        sum_order_items_df[cat_col].iloc[0], sum_order_items_df[cat_col].iloc[-1]
-    ))
-
-    st.markdown("---")
+    with col_desc:
+        st.write("### 📌 Insight Wilayah")
+        for index, row in top_product_per_state.iterrows():
+            st.write(f"- Di **{row['customer_state']}**, kategori **{row[cat_col]}** adalah penyumbang revenue terbesar dengan total **BRL {row['price']:,.0f}**.")
+        
+        st.info("💡 Data ini membantu tim logistik menentukan gudang mana yang harus memperbanyak stok kategori produk tertentu.")
 
     # --- SOAL 2: TREN PENJUALAN ---
     st.header("2. Kapan Terjadi Peningkatan Penjualan Tertinggi?")
