@@ -133,49 +133,55 @@ if all_df is not None:
 # --- ANALISIS LANJUTAN (OPSIONAL): RFM ANALYSIS ---
     st.markdown("---")
     st.header("🎯 Analisis Lanjutan: RFM Analysis")
-    st.markdown("Mengukur loyalitas pelanggan berdasarkan Recency (Kebaruan), Frequency (Frekuensi), dan Monetary (Nilai Ekonomi).")
-
-    # Menghitung parameter RFM
-    # Kita asumsikan 'customer_unique_id' sebagai identitas pelanggan
+    
+    # 1. Hitung Parameter RFM
     rfm_df = main_df.groupby(by="customer_unique_id", as_index=False).agg({
-        "order_purchase_timestamp": "max", # Mengambil tanggal order terakhir
-        "order_id": "nunique",             # Menghitung jumlah order
-        "price": "sum"                     # Menghitung total revenue
+        "order_purchase_timestamp": "max", 
+        "order_id": "nunique",             
+        "price": "sum"                     
     })
-
-    # Mengubah nama kolom
     rfm_df.columns = ["customer_id", "max_order_timestamp", "frequency", "monetary"]
 
-    # Menghitung recency (dalam hari)
+    # 2. Hitung Recency
     recent_date = main_df["order_purchase_timestamp"].max()
     rfm_df["recency"] = rfm_df["max_order_timestamp"].apply(lambda x: (recent_date - x).days)
-    rfm_df.drop("max_order_timestamp", axis=1, inplace=True)
 
-    # Tampilkan 3 Grafik RFM
+    # 3. Visualisasi 5 Pelanggan Terbaik
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.subheader("By Recency (days)")
+        st.subheader("Top Recency (Days)")
+        # Semakin kecil recency semakin baik, tapi bar chart biasanya nampilin yang 'terbesar'
+        # Kita ambil 5 pelanggan yang paling baru belanja
+        top_recency = rfm_df.sort_values(by="recency", ascending=True).head(5)
         fig, ax = plt.subplots(figsize=(8, 6))
-        sns.barplot(y="recency", x="customer_id", data=rfm_df.sort_values(by="recency", ascending=True).head(5), palette="mako", ax=ax)
-        ax.set_xticks([]) # Sembunyikan ID pelanggan agar tidak berantakan
+        sns.barplot(y="recency", x="customer_id", data=top_recency, palette="mako", ax=ax)
+        ax.set_title("Customers with Lowest Recency")
+        ax.set_xticks([]) # INI KUNCINYA: Menghilangkan ID yang numpuk
+        ax.set_xlabel("Top Customers")
         st.pyplot(fig)
 
     with col2:
-        st.subheader("By Frequency")
+        st.subheader("Top Frequency")
+        top_freq = rfm_df.sort_values(by="frequency", ascending=False).head(5)
         fig, ax = plt.subplots(figsize=(8, 6))
-        sns.barplot(y="frequency", x="customer_id", data=rfm_df.sort_values(by="frequency", ascending=False).head(5), palette="mako", ax=ax)
-        ax.set_xticks([])
+        sns.barplot(y="frequency", x="customer_id", data=top_freq, palette="mako", ax=ax)
+        ax.set_title("Customers with Highest Frequency")
+        ax.set_xticks([]) # Menghilangkan ID yang numpuk
+        ax.set_xlabel("Top Customers")
         st.pyplot(fig)
 
     with col3:
-        st.subheader("By Monetary")
+        st.subheader("Top Monetary")
+        top_money = rfm_df.sort_values(by="monetary", ascending=False).head(5)
         fig, ax = plt.subplots(figsize=(8, 6))
-        sns.barplot(y="monetary", x="customer_id", data=rfm_df.sort_values(by="monetary", ascending=False).head(5), palette="mako", ax=ax)
-        ax.set_xticks([])
+        sns.barplot(y="monetary", x="customer_id", data=top_money, palette="mako", ax=ax)
+        ax.set_title("Customers with Highest Monetary")
+        ax.set_xticks([]) # Menghilangkan ID yang numpuk
+        ax.set_xlabel("Top Customers")
         st.pyplot(fig)
 
-    st.info("💡 **Insight RFM:** Analisis ini menunjukkan siapa pelanggan paling berharga (Monetary tertinggi) dan pelanggan mana yang sudah lama tidak berbelanja (Recency tinggi).")
+    st.info("💡 **Tips Membaca:** Sumbu X sengaja dikosongkan karena berisi ID unik pelanggan yang panjang. Fokuslah pada tinggi batang yang menunjukkan perbandingan antar Top 5 pelanggan.")
     
     st.markdown("---")
     st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
