@@ -47,38 +47,61 @@ if all_df is not None:
 
     st.markdown("---")
 
-   # --- SOAL 1: PERBAIKAN URUTAN (SP PASTI DI ATAS) ---
+ # --- SOAL 1: VERSI FINAL (SP DI ATAS + INSIGHT SAMPING) ---
     st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
-    
-    # 1. Hitung TOTAL REVENUE per state dulu untuk pengurutan yang benar
+    st.markdown("Analisis kategori produk dengan pendapatan tertinggi di 5 negara bagian dengan total revenue terbesar.")
+
+    # 1. Hitung TOTAL REVENUE per state untuk menentukan urutan (SP, RJ, MG, dsb)
     state_revenue_order = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
     
     # 2. Filter data hanya untuk 5 state tersebut
     top_states_df = main_df[main_df['customer_state'].isin(state_revenue_order)]
     
-    # 3. Cari Produk terbaik di masing-masing state
+    # 3. Cari Produk terbaik di masing-masing state tersebut
     cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
     product_revenue_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
     
-    # 4. Ambil kategori tertinggi per state dan URUTKAN sesuai urutan revenue state (SP, RJ, MG, dst)
-    top_product_per_state = product_revenue_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1)
+    # 4. Ambil kategori tertinggi per state dan PAKSA urutan sesuai state_revenue_order
+    top_product_per_state = product_revenue_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1).copy()
     
-    # Trik agar urutan grafiknya tetap SP di atas:
+    # Trik pengurutan:
     top_product_per_state['customer_state'] = pd.Categorical(top_product_per_state['customer_state'], categories=state_revenue_order, ordered=True)
-    top_product_per_state = top_product_per_state.sort_values('customer_state')
+    top_product_per_state = top_product_per_state.sort_values('customer_state').reset_index(drop=True)
 
-    # --- VISUALISASI ---
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x='price', y='customer_state', data=top_product_per_state, palette='viridis', ax=ax)
-    
-    for i, p in enumerate(ax.patches):
-        ax.annotate(f" {top_product_per_state[cat_col].iloc[i]}", 
-                    (p.get_width(), p.get_y() + p.get_height()/2), 
-                    va='center', fontsize=10, fontweight='bold')
-    
-    ax.set_title("Total Revenue Negara Bagian & Kategori Produk Unggulannya", fontsize=14)
-    st.pyplot(fig)
+    # --- LAYOUT KOLOM ---
+    col_chart, col_desc = st.columns([2, 1]) 
 
+    with col_chart:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.barplot(
+            x='price', 
+            y='customer_state', 
+            data=top_product_per_state, 
+            palette='viridis',
+            ax=ax
+        )
+        ax.set_title("Revenue & Kategori Produk Unggulan per State", fontsize=14)
+        ax.set_xlabel("Total Revenue (BRL)")
+        ax.set_ylabel("State")
+        
+        # Tambahkan label nama produk di dalam bar
+        for i, p in enumerate(ax.patches):
+            ax.annotate(f" {top_product_per_state[cat_col].iloc[i]}", 
+                        (p.get_width(), p.get_y() + p.get_height()/2), 
+                        va='center', fontsize=10, fontweight='bold')
+        
+        st.pyplot(fig)
+
+    with col_desc:
+        st.write("### 📌 Insight Wilayah")
+        # Menampilkan deskripsi berdasarkan urutan grafik
+        for index, row in top_product_per_state.iterrows():
+            st.write(f"**{index+1}. {row['customer_state']}**")
+            st.write(f"Kategori: `{row[cat_col]}`")
+            st.write(f"Revenue: **BRL {row['price']:,.0f}**")
+            st.write("---")
+        
+        st.info(f"💡 Wilayah **{top_product_per_state.customer_state.iloc[0]}** tetap menjadi pemimpin pasar secara keseluruhan.")
     # --- SOAL 2: ANALISIS AOV PADA PRODUK UNGGULAN ---
     st.header("2. Analisis AOV pada Kategori Produk Unggulan")
     st.markdown("Melihat sebaran Average Order Value (AOV) per wilayah khusus untuk kategori terpopuler.")
