@@ -9,7 +9,7 @@ import os
 st.set_page_config(page_title="E-Commerce Public Dashboard", layout="wide")
 sns.set(style='dark')
 
-# --- 2. HELPER FUNCTIONS ---
+# --- 2. HELPER FUNCTIONS (Filtering logic inside) ---
 
 def create_daily_orders_df(df):
     daily_orders_df = df.resample(rule='D', on='order_purchase_timestamp').agg({
@@ -51,6 +51,7 @@ def create_rfm_df(df):
     return rfm_df
 
 # --- 3. LOAD DATA ---
+# Pastikan file all_data.csv berada di folder yang sama dengan dashboard.py
 current_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(current_dir, "all_data.csv")
 
@@ -63,28 +64,31 @@ def load_data():
 
 all_df = load_data()
 
-# --- 4. SIDEBAR FILTER ---
+# --- 4. SIDEBAR FILTERING (The Engine) ---
 min_date = all_df["order_purchase_timestamp"].min().date()
 max_date = all_df["order_purchase_timestamp"].max().date()
 
 with st.sidebar:
+    # Menggunakan logo dari Dicoding atau logo lokal (sesuaikan path gambar kamu)
     st.image("https://github.com/dicodingacademy/assets/raw/main/logo.png")
+    
     st.header("Filter Rentang Waktu")
+    # Fitur filtering yang responsif
     try:
-        date_range = st.date_input(
-            label="Pilih Periode",
+        start_date, end_date = st.date_input(
+            label='Rentang Waktu',
             min_value=min_date,
             max_value=max_date,
-            value=(min_date, max_date)
+            value=[min_date, max_date]
         )
-        start_date, end_date = date_range
     except:
         start_date, end_date = min_date, max_date
 
+# Penerapan Filter langsung ke DataFrame Utama
 main_df = all_df[(all_df["order_purchase_timestamp"].dt.date >= start_date) & 
                  (all_df["order_purchase_timestamp"].dt.date <= end_date)]
 
-# --- 5. PREPARATION ---
+# --- 5. MENYIAPKAN DATA BERDASARKAN FILTER ---
 daily_orders_df = create_daily_orders_df(main_df)
 sum_order_items_df = create_sum_order_items_df(main_df)
 bystate_df = create_bystate_df(main_df)
@@ -93,7 +97,7 @@ rfm_df = create_rfm_df(main_df)
 # --- 6. VISUALISASI DASHBOARD ---
 st.header('E-Commerce Public Dashboard :sparkles:')
 
-# --- BAGIAN 1: DAILY ORDERS ---
+# Daily Orders Section
 st.subheader('Daily Orders')
 col1, col2 = st.columns(2)
 with col1:
@@ -103,60 +107,51 @@ with col2:
     st.metric("Total Revenue", value=total_rev)
 
 fig, ax = plt.subplots(figsize=(16, 8))
-sns.barplot(x=daily_orders_df["order_purchase_timestamp"].dt.date, y=daily_orders_df["order_count"], color="#90CAF9", ax=ax)
+sns.barplot(x=daily_orders_df["order_purchase_timestamp"].dt.date, y=daily_orders_df["order_count"], color="#72BCD4", ax=ax)
 ax.set_title("Grafik Pesanan Harian", fontsize=20)
 plt.xticks(rotation=45)
 st.pyplot(fig)
 
-# --- BAGIAN 2: PERTANYAAN 1 (PRODUCT PERFORMANCE & STATE) ---
+# Pertanyaan 1: Product Performance
 st.subheader("Best & Worst Performing Product")
-
 fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(35, 15))
-colors = ["#90CAF9", "#D3D3D3", "#D3D3D3", "#D3D3D3", "#D3D3D3"]
 
-# Best Product
+# Strategi Warna: Hanya nilai tertinggi yang biru cerah, sisanya abu-abu
+colors = ["#72BCD4", "#D3D3D3", "#D3D3D3", "#D3D3D3", "#D3D3D3"]
+
 sns.barplot(x="order_id", y="category", data=sum_order_items_df.sort_values(by="order_id", ascending=False).head(5), palette=colors, ax=ax[0])
 ax[0].set_title("Best Performing Product", loc="center", fontsize=50)
 ax[0].tick_params(axis='y', labelsize=35)
-ax[0].tick_params(axis='x', labelsize=30)
 ax[0].set_xlabel(None)
-ax[0].set_ylabel(None)
 
-# Worst Product
 sns.barplot(x="order_id", y="category", data=sum_order_items_df.sort_values(by="order_id", ascending=True).head(5), palette=colors, ax=ax[1])
 ax[1].set_title("Worst Performing Product", loc="center", fontsize=50)
 ax[1].invert_xaxis()
 ax[1].yaxis.set_label_position("right")
 ax[1].yaxis.tick_right()
 ax[1].tick_params(axis='y', labelsize=35)
-ax[1].tick_params(axis='x', labelsize=30)
 ax[1].set_xlabel(None)
-ax[1].set_ylabel(None)
-
 st.pyplot(fig)
 
-# Deskripsi Pertanyaan 1
-st.info("**Kesimpulan Pertanyaan 1: Analisis Profitabilitas Produk berdasarkan Wilayah**")
-st.write("""Berdasarkan analisis data periode 2016-2018, pendapatan (revenue) perusahaan sangat terpusat pada wilayah dengan aktivitas ekonomi tinggi, khususnya di negara bagian SP (São Paulo) yang mendominasi total pendapatan secara signifikan sebesar 472.238,07 BRL. Kategori produk yang memberikan kontribusi profitabilitas tertinggi di wilayah utama tersebut adalah bed_bath_table. Namun, wilayah lain seperti RJ dan MG menunjukkan keunikan dengan kategori unggulan pada watches_gifts dan health_beauty. Hal ini mengindikasikan bahwa strategi pemenuhan stok di wilayah padat transaksi harus dipersonalisasi sesuai dengan preferensi kategori dominan di masing-masing state.""")
+st.info("**Kesimpulan Pertanyaan 1:**")
+st.write("""Analisis Profitabilitas Produk berdasarkan Wilayah: Berdasarkan analisis data periode 2016-2018, pendapatan (revenue) sangat terpusat pada wilayah dengan aktivitas ekonomi tinggi, khususnya di negara bagian SP (São Paulo) sebesar 472.238,07 BRL. Kategori 'bed_bath_table' memberikan kontribusi profit tertinggi. Hal ini mengindikasikan bahwa strategi pemenuhan stok harus dipersonalisasi sesuai preferensi kategori dominan di masing-masing state.""")
 
-# --- BAGIAN 3: DEMOGRAPHICS & PERTANYAAN 2 ---
+# Demographics
 st.subheader("Customer Demographics")
 fig, ax = plt.subplots(figsize=(16, 8))
-# Highlight State SP sesuai gambar
-colors_state = ["#90CAF9" if i == 0 else "#D3D3D3" for i in range(10)]
-sns.barplot(x="customer_count", y="customer_state", data=bystate_df.head(10), palette=colors_state, ax=ax)
+# Highlight negara bagian SP sebagai yang tertinggi
+state_colors = ["#72BCD4" if i == 0 else "#D3D3D3" for i in range(10)]
+sns.barplot(x="customer_count", y="customer_state", data=bystate_df.head(10), palette=state_colors, ax=ax)
 ax.set_title("Number of Customer by States", fontsize=30)
 ax.set_xlabel(None)
 ax.set_ylabel(None)
-ax.tick_params(axis='y', labelsize=20)
-ax.tick_params(axis='x', labelsize=20)
 st.pyplot(fig)
 
-# Deskripsi Pertanyaan 2
-st.info("**Kesimpulan Pertanyaan 2: Analisis Loyalitas & Nilai Transaksi Pelanggan**")
-st.write("""Hasil analisis pada kategori 'bed_bath_table' periode 2017-2018 menunjukkan korelasi unik: wilayah di luar pusat ekonomi cenderung memiliki daya beli per transaksi yang lebih tinggi. Meskipun São Paulo memimpin secara volume, negara bagian RR (Roraima) memiliki Average Order Value (AOV) tertinggi mencapai 304.85 BRL, jauh di atas rata-rata wilayah perkotaan.""")
+# Pertanyaan 2: Loyalitas
+st.info("**Kesimpulan Pertanyaan 2:**")
+st.write("""Analisis Loyalitas & Nilai Transaksi Pelanggan: Kategori 'bed_bath_table' (2017-2018) menunjukkan wilayah RR (Roraima) memiliki AOV tertinggi mencapai 304.85 BRL. Karena mayoritas pelanggan adalah One-Time Buyers, fokus harus dialihkan ke program retensi pelanggan di wilayah AOV tinggi melalui loyalty reward.""")
 
-# --- BAGIAN 4: RFM ANALYSIS ---
+# RFM Analysis
 st.subheader("Best Customer Based on RFM Parameters")
 col_r1, col_r2, col_r3 = st.columns(3)
 with col_r1:
@@ -167,29 +162,18 @@ with col_r3:
     st.metric("Avg Monetary", value=format_currency(rfm_df.monetary.mean(), "BRL", locale='pt_BR'))
 
 fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(35, 15))
-
-# Recency
+# Barplot RFM dengan Highlighter
 sns.barplot(y="recency", x="customer_id", data=rfm_df.sort_values(by="recency", ascending=True).head(5), palette=colors, ax=ax[0])
 ax[0].set_title("By Recency (days)", fontsize=50)
 ax[0].set_xticklabels(rfm_df.sort_values(by="recency", ascending=True).head(5).customer_id.str[:5], rotation=45, fontsize=30)
-ax[0].set_xlabel(None)
 
-# Frequency
 sns.barplot(y="frequency", x="customer_id", data=rfm_df.sort_values(by="frequency", ascending=False).head(5), palette=colors, ax=ax[1])
 ax[1].set_title("By Frequency", fontsize=50)
 ax[1].set_xticklabels(rfm_df.sort_values(by="frequency", ascending=False).head(5).customer_id.str[:5], rotation=45, fontsize=30)
-ax[1].set_xlabel(None)
 
-# Monetary
 sns.barplot(y="monetary", x="customer_id", data=rfm_df.sort_values(by="monetary", ascending=False).head(5), palette=colors, ax=ax[2])
 ax[2].set_title("By Monetary", fontsize=50)
 ax[2].set_xticklabels(rfm_df.sort_values(by="monetary", ascending=False).head(5).customer_id.str[:5], rotation=45, fontsize=30)
-ax[2].set_xlabel(None)
-
 st.pyplot(fig)
-
-st.markdown("""
-> **Insight Tambahan:** Analisis RFM mengungkap tantangan besar di mana mayoritas pelanggan masih bersifat One-Time Buyers. Rekomendasi strategis utamanya adalah mengalihkan fokus ke program retensi pelanggan di wilayah dengan AOV tinggi (seperti RR, AP, dan AC) melalui loyalty reward.
-""")
 
 st.caption('Copyright (c) 2026 | Analisis Data Egi Farhan')
