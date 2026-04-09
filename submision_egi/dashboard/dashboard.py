@@ -69,9 +69,10 @@ max_date = all_df["order_purchase_timestamp"].max().date()
 
 with st.sidebar:
     st.image("https://github.com/dicodingacademy/assets/raw/main/logo.png")
+    st.header("Filter Rentang Waktu")
     try:
         date_range = st.date_input(
-            label="Pilih Rentang Waktu",
+            label="Pilih Periode",
             min_value=min_date,
             max_value=max_date,
             value=(min_date, max_date)
@@ -83,16 +84,16 @@ with st.sidebar:
 main_df = all_df[(all_df["order_purchase_timestamp"].dt.date >= start_date) & 
                  (all_df["order_purchase_timestamp"].dt.date <= end_date)]
 
-# --- 5. DATA PREPARATION ---
+# --- 5. PREPARATION ---
 daily_orders_df = create_daily_orders_df(main_df)
 sum_order_items_df = create_sum_order_items_df(main_df)
 bystate_df = create_bystate_df(main_df)
 rfm_df = create_rfm_df(main_df)
 
-# --- 6. VISUALISASI ---
+# --- 6. VISUALISASI DASHBOARD ---
 st.header('E-Commerce Public Dashboard :sparkles:')
 
-# Daily Orders
+# Section 1: Daily Orders (Sekarang dalam bentuk Batang/Bar)
 st.subheader('Daily Orders')
 col1, col2 = st.columns(2)
 with col1:
@@ -101,14 +102,17 @@ with col2:
     total_rev = format_currency(daily_orders_df.revenue.sum(), "BRL", locale='pt_BR')
     st.metric("Total Revenue", value=total_rev)
 
-# Mengubah Daily Orders menjadi Grafik Batang seperti di Colab
 fig, ax = plt.subplots(figsize=(16, 8))
+# Menggunakan barplot untuk Daily Orders
 sns.barplot(x=daily_orders_df["order_purchase_timestamp"].dt.date, y=daily_orders_df["order_count"], color="#90CAF9", ax=ax)
+ax.set_title("Grafik Pesanan Harian", fontsize=20)
 plt.xticks(rotation=45)
 st.pyplot(fig)
-st.write("**Deskripsi:** [Masukkan deskripsi dari Colab kamu di sini, contoh: Berdasarkan grafik di atas, jumlah pesanan terbanyak terjadi pada tanggal...]")
+st.markdown("""
+**Deskripsi (Insight):** Pembersihan data dengan batasan waktu menghasilkan analisis yang akurat dan relevan. Bisnis dapat melihat tren yang terjadi pada periode tertentu tanpa terganggu oleh data usang, sehingga pengambilan keputusan didasarkan pada realitas pasar yang tepat.
+""")
 
-# Product Performance (Grafik Batang)
+# Section 2: Product Performance
 st.subheader("Best & Worst Performing Product")
 fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(35, 15))
 colors = ["#90CAF9", "#D3D3D3", "#D3D3D3", "#D3D3D3", "#D3D3D3"]
@@ -116,6 +120,7 @@ colors = ["#90CAF9", "#D3D3D3", "#D3D3D3", "#D3D3D3", "#D3D3D3"]
 sns.barplot(x="order_id", y="category", data=sum_order_items_df.sort_values(by="order_id", ascending=False).head(5), palette=colors, ax=ax[0])
 ax[0].set_title("Best Performing Product", loc="center", fontsize=50)
 ax[0].tick_params(axis='y', labelsize=35)
+ax[0].tick_params(axis='x', labelsize=30)
 
 sns.barplot(x="order_id", y="category", data=sum_order_items_df.sort_values(by="order_id", ascending=True).head(5), palette=colors, ax=ax[1])
 ax[1].set_title("Worst Performing Product", loc="center", fontsize=50)
@@ -123,17 +128,25 @@ ax[1].invert_xaxis()
 ax[1].yaxis.set_label_position("right")
 ax[1].yaxis.tick_right()
 ax[1].tick_params(axis='y', labelsize=35)
+ax[1].tick_params(axis='x', labelsize=30)
 st.pyplot(fig)
-st.write("**Deskripsi:** [Masukkan deskripsi dari Colab kamu di sini, contoh: Produk kategori bed_bath_table merupakan produk yang paling banyak terjual...]")
+st.markdown("""
+**Deskripsi (Insight):** Visualisasi berbasis prioritas dengan teknik Highlighting (warna berbeda pada peringkat pertama) mempermudah stakeholder menangkap informasi krusial. Pemilik bisnis bisa langsung tahu kategori mana yang merupakan 'tambang emas' atau yang perlu dievaluasi.
+""")
 
-# Demographics
+# Section 3: Customer Demographics
 st.subheader("Customer Demographics")
 fig, ax = plt.subplots(figsize=(16, 8))
-sns.barplot(x="customer_count", y="customer_state", data=bystate_df.head(5), palette="Blues_d", ax=ax)
+sns.barplot(x="customer_count", y="customer_state", data=bystate_df.head(5), palette=colors, ax=ax)
+ax.set_title("Number of Customer by States", fontsize=30)
+ax.tick_params(axis='y', labelsize=20)
+ax.tick_params(axis='x', labelsize=20)
 st.pyplot(fig)
-st.write("**Deskripsi:** [Masukkan deskripsi dari Colab kamu di sini, contoh: Pelanggan terbanyak berasal dari negara bagian SP (Sao Paulo)...]")
+st.markdown("""
+**Deskripsi (Insight):** Integrasi data multidimensi memungkinkan analisis lintas variabel. Kita bisa melihat hubungan antara lokasi geografis pembeli dan frekuensi transaksi mereka untuk mendukung strategi logistik wilayah.
+""")
 
-# RFM Analysis
+# Section 4: RFM Analysis (Grafik Batang)
 st.subheader("Best Customer Based on RFM Parameters")
 col_r1, col_r2, col_r3 = st.columns(3)
 with col_r1:
@@ -157,6 +170,8 @@ sns.barplot(y="monetary", x="customer_id", data=rfm_df.sort_values(by="monetary"
 ax[2].set_title("By Monetary", loc="center", fontsize=50)
 ax[2].set_xticklabels(rfm_df.sort_values(by="monetary", ascending=False).head(5).customer_id.str[:5], rotation=45, fontsize=30)
 st.pyplot(fig)
-st.write("**Deskripsi:** [Masukkan deskripsi dari Colab kamu di sini tentang performa pelanggan terbaik berdasarkan RFM...]")
+st.markdown("""
+**Deskripsi (Insight):** Pengukuran metrik RFM memberikan pandangan mendalam mengenai daya beli. Wilayah atau pelanggan dengan transaksi banyak namun nilai kecil bisa diberikan promo upselling (bundling), sedangkan yang bernilai besar diberikan promo loyalitas.
+""")
 
 st.caption('Copyright (c) 2026 | Analisis Data Egi Farhan')
