@@ -5,17 +5,14 @@ import streamlit as st
 from babel.numbers import format_currency
 import os
 
-sns.set(style='darkgrid')
+sns.set(style='dark')
 
 # =========================
 # HELPER FUNCTIONS
 # =========================
 
 def create_daily_orders_df(df):
-    df = df.copy()
-    df.set_index("order_purchase_timestamp", inplace=True)
-
-    daily_orders_df = df.resample("D").agg({
+    daily_orders_df = df.resample(rule='D', on='order_purchase_timestamp').agg({
         "order_id": "nunique",
         "price": "sum"
     }).reset_index()
@@ -74,12 +71,7 @@ def create_rfm_df(df):
         "price": "sum"
     }).reset_index()
 
-    rfm_df.columns = [
-        "customer_id",
-        "max_order_timestamp",
-        "frequency",
-        "monetary"
-    ]
+    rfm_df.columns = ["customer_id", "max_order_timestamp", "frequency", "monetary"]
 
     recent_date = df["order_purchase_timestamp"].max()
 
@@ -87,7 +79,24 @@ def create_rfm_df(df):
         recent_date - rfm_df["max_order_timestamp"]
     ).dt.days
 
-    return rfm_df.drop(columns=["max_order_timestamp"])
+    rfm_df.drop(columns=["max_order_timestamp"], inplace=True)
+
+    # =========================
+    # SEGMENTASI RFM (BONUS)
+    # =========================
+    rfm_df["segment"] = "Regular"
+
+    rfm_df.loc[
+        (rfm_df["recency"] <= 30) & (rfm_df["frequency"] >= 3),
+        "segment"
+    ] = "Loyal"
+
+    rfm_df.loc[
+        rfm_df["monetary"] >= rfm_df["monetary"].quantile(0.75),
+        "segment"
+    ] = "High Value"
+
+    return rfm_df
 
 
 # =========================
@@ -102,29 +111,38 @@ all_df = pd.read_csv(file_path)
 all_df["order_purchase_timestamp"] = pd.to_datetime(all_df["order_purchase_timestamp"])
 all_df["order_delivered_customer_date"] = pd.to_datetime(all_df["order_delivered_customer_date"])
 
+all_df.sort_values(by="order_purchase_timestamp", inplace=True)
+
 # =========================
 # SIDEBAR
 # =========================
 
-min_date = all_df["order_purchase_timestamp"].min()
-max_date = all_df["order_purchase_timestamp"].max()
+min_date = all_df["order_purchase_timestamp"].min().date()
+max_date = all_df["order_purchase_timestamp"].max().date()
 
 with st.sidebar:
     st.image("https://github.com/dicodingacademy/assets/raw/main/logo.png")
-    st.header("Filter Data")
 
     start_date, end_date = st.date_input(
-        "Pilih Rentang Tanggal",
-        value=(min_date.date(), max_date.date())
+        "Rentang Waktu",
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date)
     )
 
+# =========================
 # FILTER
+# =========================
+
 main_df = all_df[
-    (all_df["order_purchase_timestamp"] >= pd.to_datetime(start_date)) &
-    (all_df["order_purchase_timestamp"] <= pd.to_datetime(end_date))
+    (all_df["order_purchase_timestamp"].dt.date >= start_date) &
+    (all_df["order_purchase_timestamp"].dt.date <= end_date)
 ]
 
-# PREPARE
+# =========================
+# PREPARE DATA
+# =========================
+
 daily_orders_df = create_daily_orders_df(main_df)
 bycity_df = create_bycity_df(main_df)
 bystate_df = create_bystate_df(main_df)
@@ -136,111 +154,153 @@ rfm_df = create_rfm_df(main_df)
 # DASHBOARD
 # =========================
 
-st.title("📊 E-Commerce Data Analysis Dashboard")
-st.markdown("Dashboard ini menampilkan analisis performa e-commerce berdasarkan data transaksi pelanggan.")
+st.header('📊 E-Commerce Public Dashboard')
 
 # =========================
 # DAILY ORDERS
 # =========================
 
-st.header("📈 Daily Orders & Revenue")
-
-st.markdown("Menampilkan tren jumlah pesanan dan total pendapatan per hari.")
+st.subheader('Daily Orders')
+st.markdown("Menampilkan tren jumlah pesanan dan revenue harian.")
 
 col1, col2 = st.columns(2)
-
 with col1:
-    st.metric("Total Orders", daily_orders_df["order_count"].sum())
-
+    st.metric("Total Orders", daily_orders_df.order_count.sum())
 with col2:
-    st.metric(
-        "Total Revenue",
-        format_currency(daily_orders_df["revenue"].sum(), "USD", locale="en_US")
-    )
+    st.metric("Total Revenue", format_currency(daily_orders_df.revenue.sum(), "USD", locale='en_US'))
 
-fig, ax = plt.subplots()
-ax.plot(daily_orders_df["order_purchase_timestamp"], daily_orders_df["order_count"])
-ax.set_title("Tren Jumlah Order Harian")
-ax.set_xlabel("Tanggal")
-ax.set_ylabel("Jumlah Order")
+fig, ax = plt.subplots(figsize=(16, 8))
+ax.plot(
+    daily_orders_df["order_purchase_timestamp"],
+    daily_orders_df["order_count"],
+    marker='o',
+    linewidth=2,
+    color="#90CAF9"
+)
+ax.set_title("Daily Orders Trend")
 st.pyplot(fig)
 
-st.info("Insight: Terlihat adanya fluktuasi jumlah order yang menunjukkan pola musiman dalam transaksi.")
+st.info("Insight: Terlihat fluktuasi jumlah order yang menunjukkan pola pembelian pelanggan.")
 
 # =========================
 # DEMOGRAFI
 # =========================
 
-st.header("🌍 Customer Demographics")
-
-st.markdown("Distribusi pelanggan berdasarkan kota dan negara bagian.")
+st.subheader("Customer Demographics")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    fig, ax = plt.subplots()
-    sns.barplot(data=bystate_df.head(5), x="customer_count", y="customer_state")
-    ax.set_title("Top 5 States")
+    fig, ax = plt.subplots(figsize=(10, 5))
+    sns.barplot(x="customer_count", y="customer_state", data=bystate_df.head(5), color="#90CAF9")
+    ax.set_title("Top States")
     st.pyplot(fig)
 
 with col2:
-    fig, ax = plt.subplots()
-    sns.barplot(data=bycity_df.head(5), x="customer_count", y="customer_city")
-    ax.set_title("Top 5 Cities")
+    fig, ax = plt.subplots(figsize=(10, 5))
+    sns.barplot(x="customer_count", y="customer_city", data=bycity_df.head(5), color="#90CAF9")
+    ax.set_title("Top Cities")
     st.pyplot(fig)
 
-st.info("Insight: Beberapa wilayah memiliki konsentrasi pelanggan yang lebih tinggi.")
+st.info("Insight: Wilayah tertentu memiliki konsentrasi pelanggan yang tinggi.")
 
 # =========================
 # DELIVERY
 # =========================
 
-st.header("🚚 Delivery Time Analysis")
+st.subheader("Delivery Time Analysis")
 
-st.markdown("Analisis waktu pengiriman pesanan ke pelanggan.")
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("Avg Delivery Time", round(delivery_time_df['delivery_time_days'].mean(), 1))
+with col2:
+    st.metric("Max Delay", delivery_time_df['delivery_time_days'].max())
 
-st.metric("Rata-rata Hari Pengiriman", round(delivery_time_df["delivery_time_days"].mean(), 1))
-
-fig, ax = plt.subplots()
-sns.histplot(delivery_time_df["delivery_time_days"], bins=30)
-ax.set_title("Distribusi Waktu Pengiriman")
+fig, ax = plt.subplots(figsize=(16, 8))
+sns.histplot(delivery_time_df['delivery_time_days'], bins=40, color="#90CAF9", kde=True)
+ax.set_title("Delivery Time Distribution")
 st.pyplot(fig)
 
-st.info("Insight: Sebagian besar pengiriman berada dalam rentang waktu tertentu.")
+st.info("Insight: Mayoritas pengiriman berada dalam rentang waktu tertentu.")
 
 # =========================
 # PRODUCT
 # =========================
 
-st.header("🛒 Product Performance")
+st.subheader("Best Product Categories")
 
-st.markdown("Kategori produk dengan performa terbaik berdasarkan revenue.")
+fig, ax = plt.subplots(ncols=2, figsize=(16, 6))
 
-fig, ax = plt.subplots()
 sns.barplot(
-    data=sum_order_items_df.head(5),
-    x="price",
-    y="product_category_name_english"
+    x="order_id",
+    y="product_category_name_english",
+    data=sum_order_items_df.sort_values(by="order_id", ascending=False).head(5),
+    color="#90CAF9",
+    ax=ax[0]
 )
-ax.set_title("Top Product Categories by Revenue")
+ax[0].set_title("Top by Volume")
+
+sns.barplot(
+    x="price",
+    y="product_category_name_english",
+    data=sum_order_items_df.head(5),
+    color="#90CAF9",
+    ax=ax[1]
+)
+ax[1].set_title("Top by Revenue")
+
 st.pyplot(fig)
 
-st.info("Insight: Beberapa kategori produk mendominasi total pendapatan.")
+st.info("Insight: Beberapa kategori produk mendominasi penjualan.")
 
 # =========================
-# RFM
+# RFM ANALYSIS (FINAL)
 # =========================
 
-st.header("👥 RFM Analysis")
+st.subheader("RFM Analysis")
 
-st.markdown("Analisis perilaku pelanggan berdasarkan Recency, Frequency, dan Monetary.")
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Avg Recency", round(rfm_df.recency.mean(), 1))
+with col2:
+    st.metric("Avg Frequency", round(rfm_df.frequency.mean(), 2))
+with col3:
+    st.metric("Avg Monetary", format_currency(rfm_df.monetary.mean(), "USD", locale='en_US'))
 
-st.metric("Rata-rata Recency", round(rfm_df["recency"].mean(), 1))
+# BAR CHART
+fig, ax = plt.subplots(ncols=3, figsize=(18, 6))
 
-st.info("Insight: Pelanggan dengan recency rendah berarti lebih baru melakukan transaksi.")
+sns.barplot(data=rfm_df.sort_values(by="recency").head(5), x="customer_id", y="recency", ax=ax[0], color="#90CAF9")
+ax[0].set_title("Best Recency")
+
+sns.barplot(data=rfm_df.sort_values(by="frequency", ascending=False).head(5), x="customer_id", y="frequency", ax=ax[1], color="#90CAF9")
+ax[1].set_title("Top Frequency")
+
+sns.barplot(data=rfm_df.sort_values(by="monetary", ascending=False).head(5), x="customer_id", y="monetary", ax=ax[2], color="#90CAF9")
+ax[2].set_title("Top Monetary")
+
+st.pyplot(fig)
+
+# TABEL
+st.subheader("Top Customers (RFM Table)")
+st.dataframe(rfm_df.sort_values(by=["monetary", "frequency"], ascending=False).head(10))
+
+# SEGMENTASI
+st.subheader("Customer Segmentation")
+
+fig, ax = plt.subplots()
+sns.countplot(data=rfm_df, x="segment", palette=["#90CAF9"])
+st.pyplot(fig)
+
+st.info("""
+Insight:
+- Loyal = sering beli & baru transaksi
+- High Value = kontribusi revenue tinggi
+- Regular = pelanggan biasa
+""")
 
 # =========================
 # FOOTER
 # =========================
 
-st.caption("© 2026 Dicoding Submission Dashboard")
+st.caption("© 2026 Dicoding Submission")
