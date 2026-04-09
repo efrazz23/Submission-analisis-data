@@ -24,19 +24,36 @@ def load_data():
 
 all_df = load_data()
 
-# --- 2. LOGIKA UTAMA (Bagian Sidebar dengan Logo Baru) ---
+# --- 2. LOGIKA UTAMA & FILTERING ---
 if all_df is not None:
     with st.sidebar:
-        # LOGO RESMI DICODING COLLECTION (Pasti muncul di Cloud)
+        # Logo Resmi Dicoding Collection
         st.image("https://raw.githubusercontent.com/dicodingacademy/dicoding_datasets/main/logo_dicoding_collection.png", width=150)
-        
         st.title("🛒 E-Commerce Dashboard")
         
         min_date, max_date = all_df["order_purchase_timestamp"].min(), all_df["order_purchase_timestamp"].max()
         st.write("**Filter Rentang Waktu**")
-        date_range = st.date_input("Pilih Tanggal", [min_date, max_date], min_value=min_date, max_value=max_date)
         
-        # ... (kode filtering tanggal ke bawah tetap sama) ...
+        # Mengambil input tanggal dari user
+        date_range = st.date_input(
+            label="Pilih Rentang Waktu",
+            value=[min_date, max_date],
+            min_value=min_date,
+            max_value=max_date
+        )
+        
+    # --- KRUSIAL: Mendefinisikan main_df agar tidak NameError ---
+    if isinstance(date_range, list) and len(date_range) == 2:
+        start_date, end_date = date_range
+        main_df = all_df[(all_df["order_purchase_timestamp"] >= pd.to_datetime(start_date)) & 
+                         (all_df["order_purchase_timestamp"] <= pd.to_datetime(end_date))]
+    else:
+        main_df = all_df
+
+    # --- 3. HEADER DASHBOARD ---
+    st.title("📊 Dashboard Analisis E-Commerce")
+    st.markdown(f"Menampilkan data dari periode: **{main_df['order_purchase_timestamp'].min().date()}** hingga **{main_df['order_purchase_timestamp'].max().date()}**")
+
     # --- 4. PERTANYAAN 1: REVENUE PER STATE & CATEGORY ---
     st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
     cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
@@ -52,18 +69,20 @@ if all_df is not None:
     col_chart1, col_insight1 = st.columns([2, 1])
     with col_chart1:
         fig, ax = plt.subplots(figsize=(10, 6))
-        # PRINSIP INTEGRITAS: Warna seragam (Abu-abu), Highlight Biru untuk yang tertinggi
+        # PRINSIP INTEGRITAS: Highlight Biru untuk yang tertinggi, sisanya Abu-abu
         colors_1 = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(top_product_state))]
         sns.barplot(x='price', y='label', data=top_product_state, palette=colors_1, ax=ax)
         ax.set_title("Kategori dengan Revenue Tertinggi di 5 State Terbesar", fontsize=15)
+        ax.set_xlabel("Total Revenue (BRL)")
+        ax.set_ylabel(None)
         st.pyplot(fig)
     
     with col_insight1:
         st.write("### 📌 Insight Wilayah")
         st.markdown("""
-        * **Dominasi SP:** Negara bagian **SP** memimpin pendapatan dengan kategori **Bed Bath Table**.
-        * **Strategi Warna:** Batang biru menunjukkan kategori paling menguntungkan secara nasional.
-        * **Saran:** Optimalkan logistik di wilayah SP untuk kategori rumah tangga.
+        * **Pusat Ekonomi:** Negara bagian **SP (São Paulo)** mendominasi mutlak pendapatan.
+        * **Kategori Unggulan:** **Bed Bath Table** menjadi penggerak utama di wilayah padat.
+        * **Visualisasi:** Batang biru menonjolkan wilayah dengan performa terbaik untuk membantu pengambilan keputusan cepat.
         """)
 
     # --- 5. PERTANYAAN 2: AOV ANALYSIS ---
@@ -81,13 +100,15 @@ if all_df is not None:
             colors_2 = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(aov_data))]
             sns.barplot(x='AOV', y='customer_state', data=aov_data, palette=colors_2, ax=ax2)
             ax2.set_title("Top 10 State by AOV (Bed Bath Table)", fontsize=15)
+            ax2.set_xlabel("Rata-rata Nilai Transaksi (BRL)")
             st.pyplot(fig2)
         
         with col_insight2:
             st.write("### 📈 AOV Discovery")
             st.success(f"**{aov_data.customer_state.iloc[0]}** memiliki daya beli tertinggi per transaksi.")
+            st.markdown("Hal ini menunjukkan potensi pasar premium di wilayah tersebut.")
 
-    # --- 6. RFM ANALYSIS (MUNCUL KEMBALI) ---
+    # --- 6. RFM ANALYSIS ---
     st.markdown("---")
     st.header("🎯 Analisis Lanjutan: RFM Analysis")
     
@@ -108,6 +129,7 @@ if all_df is not None:
         top_r = rfm_df.sort_values(by="recency", ascending=True).head(5)
         fig, ax = plt.subplots()
         sns.barplot(y="recency", x=short_id(top_r), data=top_r, color="#0077b6", ax=ax)
+        plt.xticks(rotation=45)
         st.pyplot(fig)
 
     with col_f:
@@ -115,6 +137,7 @@ if all_df is not None:
         top_f = rfm_df.sort_values(by="frequency", ascending=False).head(5)
         fig, ax = plt.subplots()
         sns.barplot(y="frequency", x=short_id(top_f), data=top_f, color="#0077b6", ax=ax)
+        plt.xticks(rotation=45)
         st.pyplot(fig)
 
     with col_m:
@@ -122,8 +145,9 @@ if all_df is not None:
         top_m = rfm_df.sort_values(by="monetary", ascending=False).head(5)
         fig, ax = plt.subplots()
         sns.barplot(y="monetary", x=short_id(top_m), data=top_m, color="#0077b6", ax=ax)
+        plt.xticks(rotation=45)
         st.pyplot(fig)
 
     st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
 else:
-    st.error("Gagal memuat file all_data.csv.")
+    st.error("Gagal memuat file all_data.csv. Pastikan file berada di folder yang sama dengan dashboard.py.")
