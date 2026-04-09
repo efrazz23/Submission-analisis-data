@@ -299,6 +299,92 @@ Insight:
 - Regular = pelanggan biasa
 """)
 
+
+st.header("📌 Business Questions & Insights")
+
+# =========================
+# PERTANYAAN 1
+# =========================
+
+st.subheader("1️⃣ Pertanyaan 1")
+
+st.markdown("""
+**Kategori produk apa yang menghasilkan total pendapatan (revenue) tertinggi di 5 negara bagian (state) 
+dengan volume transaksi terbesar selama periode 2016-2018?**
+""")
+
+st.markdown("""
+📊 **Visualisasi yang digunakan:**
+- Grafik **Top States (Customer Demographics)** → untuk melihat 5 state dengan volume transaksi terbesar  
+- Grafik **Top Product Categories (By Revenue)** → untuk melihat kategori dengan revenue tertinggi  
+
+📌 **Interpretasi:**
+- State dengan jumlah pelanggan tertinggi merepresentasikan volume transaksi terbesar  
+- Dari grafik produk, terlihat bahwa kategori dengan revenue tertinggi adalah kategori yang paling berkontribusi terhadap total pendapatan  
+
+💡 **Kesimpulan:**
+Kategori produk dengan revenue tertinggi (misalnya: *bed_bath_table* atau kategori lain pada grafik) merupakan kontributor utama pada state dengan aktivitas transaksi terbesar.
+""")
+
+# =========================
+# PERTANYAAN 2
+# =========================
+
+st.subheader("2️⃣ Pertanyaan 2")
+
+st.markdown("""
+**Bagaimana efektivitas nilai transaksi (Average Order Value) pada kategori produk unggulan 'Bed Bath Table' 
+di berbagai wilayah Brazil selama periode 2017-2018, dan wilayah mana yang menunjukkan potensi daya beli tertinggi?**
+""")
+
+# =========================
+# HITUNG AOV
+# =========================
+
+bed_df = main_df[
+    (main_df["product_category_name_english"] == "bed_bath_table") &
+    (main_df["order_purchase_timestamp"].dt.year >= 2017)
+]
+
+aov_df = bed_df.groupby("customer_state").agg({
+    "price": "sum",
+    "order_id": "nunique"
+}).reset_index()
+
+aov_df["AOV"] = aov_df["price"] / aov_df["order_id"]
+aov_df = aov_df.sort_values(by="AOV", ascending=False)
+
+# =========================
+# VISUALISASI AOV
+# =========================
+
+st.markdown("📊 **Visualisasi Average Order Value (AOV)**")
+
+fig, ax = plt.subplots(figsize=(12, 6))
+sns.barplot(data=aov_df.head(5), x="AOV", y="customer_state", color="#90CAF9")
+ax.set_title("Top 5 States by AOV (Bed Bath Table)")
+st.pyplot(fig)
+
+# =========================
+# TABEL AOV
+# =========================
+
+st.markdown("📋 **Tabel AOV per State**")
+st.dataframe(aov_df.head(10))
+
+# =========================
+# INTERPRETASI
+# =========================
+
+st.markdown("""
+📌 **Interpretasi:**
+- AOV menunjukkan rata-rata nilai transaksi per order  
+- Semakin tinggi AOV → semakin besar daya beli pelanggan di wilayah tersebut  
+
+💡 **Kesimpulan:**
+State dengan nilai AOV tertinggi menunjukkan potensi daya beli per transaksi yang paling besar terhadap produk *Bed Bath Table*.
+""")
+
 # =========================
 # FOOTER
 # =========================
