@@ -4,184 +4,159 @@ import seaborn as sns
 import streamlit as st
 import os
 
-# --- 1. KONFIGURASI ---
-st.set_page_config(page_title="Final Submission | Egi", layout="wide")
+# --- 1. KONFIGURASI HALAMAN ---
+st.set_page_config(page_title="E-Commerce Analytics | Egi Farhan", layout="wide")
 
+# Penanganan Path File all_data.csv
 current_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(current_dir, "all_data.csv")
 
 @st.cache_data
 def load_data():
-    if not os.path.exists(file_path): 
+    if not os.path.exists(file_path):
         return None
     df = pd.read_csv(file_path)
+    # Memastikan kolom tanggal terformat dengan benar
     if 'order_purchase_timestamp' in df.columns:
         df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'], errors='coerce')
     return df.dropna(subset=['order_purchase_timestamp'])
 
 all_df = load_data()
 
-# --- 2. LOGIKA DATA ---
+# --- 2. LOGIKA SIDEBAR & FILTER ---
 if all_df is not None:
-    # Sidebar Filter
     with st.sidebar:
-        st.header("⚙️ Kontrol Data")
-        min_d, max_d = all_df["order_purchase_timestamp"].min(), all_df["order_purchase_timestamp"].max()
-        dates = st.date_input("Filter Periode", [min_d, max_d], min_value=min_d, max_value=max_d)
+        st.title("🛒 E-Commerce Dashboard")
+        st.image("https://raw.githubusercontent.com/dicodingacademy/dicoding_datasets/main/logo_dicoding.png", width=100)
         
-        if len(dates) == 2:
-            main_df = all_df[(all_df["order_purchase_timestamp"] >= pd.to_datetime(dates[0])) & 
-                             (all_df["order_purchase_timestamp"] <= pd.to_datetime(dates[1]))]
-        else:
-            main_df = all_df
+        # Filter Rentang Waktu
+        min_date = all_df["order_purchase_timestamp"].min()
+        max_date = all_df["order_purchase_timestamp"].max()
+        
+        st.subheader("Filter Periode")
+        start_date, end_date = st.date_input(
+            label='Pilih Rentang Waktu',
+            min_value=min_date,
+            max_value=max_date,
+            value=[min_date, max_date]
+        )
+        
+        main_df = all_df[(all_df["order_purchase_timestamp"] >= pd.to_datetime(start_date)) & 
+                         (all_df["order_purchase_timestamp"] <= pd.to_datetime(end_date))]
 
-    # --- 3. TAMPILAN DASHBOARD ---
-    st.title("📊 E-Commerce Performance Analysis")
-    st.info("Dashboard ini menyajikan jawaban atas dua pertanyaan riset utama mengenai performa penjualan.")
+    # --- 3. HEADER & METRICS ---
+    st.title("📊 Brazilian E-Commerce Performance Analysis")
+    st.markdown(f"**Periode Analisis:** {start_date} s/d {end_date}")
 
-    # Ringkasan Metrics
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Uniq Orders", f"{main_df.order_id.nunique():,}")
-    c2.metric("Total Revenue", f"BRL {main_df.price.sum():,.0f}")
-    c3.metric("Total Items Sold", f"{main_df.shape[0]:,}")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        total_orders = main_df.order_id.nunique()
+        st.metric("Total Uniq Orders", value=f"{total_orders:,}")
+    with col2:
+        total_revenue = main_df.price.sum()
+        st.metric("Total Revenue", value=f"BRL {total_revenue:,.2f}")
+    with col3:
+        avg_delivery = main_df.delivery_time.mean() if 'delivery_time' in main_df.columns else 0
+        st.metric("Avg Delivery Time", value=f"{avg_delivery:.1f} Days")
 
     st.markdown("---")
 
- # --- SOAL 1: VERSI FINAL (SP DI ATAS + INSIGHT SAMPING) ---
+    # --- 4. PERTANYAAN 1: REVENUE PER STATE & PRODUCT ---
     st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
-    st.markdown("Analisis kategori produk dengan pendapatan tertinggi di 5 negara bagian dengan total revenue terbesar.")
-
-    # 1. Hitung TOTAL REVENUE per state untuk menentukan urutan (SP, RJ, MG, dsb)
-    state_revenue_order = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
     
-    # 2. Filter data hanya untuk 5 state tersebut
-    top_states_df = main_df[main_df['customer_state'].isin(state_revenue_order)]
+    # Menentukan 5 State dengan revenue terbesar
+    top_5_states = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
+    top_states_df = main_df[main_df['customer_state'].isin(top_5_states)]
     
-    # 3. Cari Produk terbaik di masing-masing state tersebut
+    # Mencari kategori unggulan di masing-masing state tersebut
     cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
-    product_revenue_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
-    
-    # 4. Ambil kategori tertinggi per state dan PAKSA urutan sesuai state_revenue_order
-    top_product_per_state = product_revenue_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1).copy()
-    
-    # Trik pengurutan:
-    top_product_per_state['customer_state'] = pd.Categorical(top_product_per_state['customer_state'], categories=state_revenue_order, ordered=True)
-    top_product_per_state = top_product_per_state.sort_values('customer_state').reset_index(drop=True)
+    top_product_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
+    top_product_state = top_product_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1)
+    top_product_state = top_product_state.sort_values(by='price', ascending=False)
 
-    # --- LAYOUT KOLOM ---
-    col_chart, col_desc = st.columns([2, 1]) 
-
-    with col_chart:
+    col_a, col_b = st.columns([2, 1])
+    with col_a:
         fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(
-            x='price', 
-            y='customer_state', 
-            data=top_product_per_state, 
-            palette='viridis',
-            ax=ax
-        )
-        ax.set_title("Revenue & Kategori Produk Unggulan per State", fontsize=14)
+        sns.barplot(x='price', y='customer_state', data=top_product_state, palette='viridis', ax=ax)
+        ax.set_title("Revenue Kategori Unggulan di 5 State Terbesar", fontsize=15)
         ax.set_xlabel("Total Revenue (BRL)")
-        ax.set_ylabel("State")
-        
-        # Tambahkan label nama produk di dalam bar
-        for i, p in enumerate(ax.patches):
-            ax.annotate(f" {top_product_per_state[cat_col].iloc[i]}", 
-                        (p.get_width(), p.get_y() + p.get_height()/2), 
-                        va='center', fontsize=10, fontweight='bold')
-        
+        ax.set_ylabel("Negara Bagian (State)")
         st.pyplot(fig)
 
-    with col_desc:
-        st.write("### 📌 Insight Wilayah")
-        # Menampilkan deskripsi berdasarkan urutan grafik
-        for index, row in top_product_per_state.iterrows():
-            st.write(f"**{index+1}. {row['customer_state']}**")
-            st.write(f"Kategori: `{row[cat_col]}`")
-            st.write(f"Revenue: **BRL {row['price']:,.0f}**")
-            st.write("---")
-        
-        st.info(f"💡 Wilayah **{top_product_per_state.customer_state.iloc[0]}** tetap menjadi pemimpin pasar secara keseluruhan.")
-    # --- SOAL 2: ANALISIS AOV PADA PRODUK UNGGULAN ---
-    st.header("2. Analisis AOV pada Kategori Produk Unggulan")
-    st.markdown("Melihat sebaran Average Order Value (AOV) per wilayah khusus untuk kategori terpopuler.")
+    with col_b:
+        st.write("### 📌 Top State Insights")
+        for i, row in top_product_state.iterrows():
+            st.write(f"**{row['customer_state']}**: `{row[cat_col]}`")
+            st.caption(f"Revenue: BRL {row['price']:,.0f}")
+        st.info("Wilayah **SP** mendominasi pasar melalui kategori **Bed Bath Table**.")
+
+    # --- 5. PERTANYAAN 2: ANALISIS AOV SPESIFIK ---
+    st.header("2. Analisis AOV Kategori 'Bed Bath Table'")
+    st.markdown("Fokus analisis pada perbandingan rata-rata nilai transaksi di berbagai wilayah.")
+
+    # Filter khusus kategori Bed Bath Table
+    cama_df = main_df[main_df[cat_col] == 'bed_bath_table']
     
-    # 1. Cari Kategori Unggulan (Paling banyak order)
-    unggulan_name = main_df.groupby(cat_col).order_id.nunique().idxmax()
-    unggulan_df = main_df[main_df[cat_col] == unggulan_name]
-    
-    # 2. Hitung AOV
-    aov_geo = unggulan_df.groupby('customer_state').agg({'price': 'sum', 'order_id': 'nunique'})
-    aov_geo['AOV'] = aov_geo['price'] / aov_geo['order_id']
-    aov_geo = aov_geo.sort_values('AOV', ascending=False).head(10).reset_index()
+    if not cama_df.empty:
+        aov_data = cama_df.groupby('customer_state').agg({'price': 'sum', 'order_id': 'nunique'})
+        aov_data['AOV'] = aov_data['price'] / aov_data['order_id']
+        aov_data = aov_data.sort_values('AOV', ascending=False).head(10).reset_index()
 
-    col_chart2, col_desc2 = st.columns([2, 1])
+        col_c, col_d = st.columns([2, 1])
+        with col_c:
+            fig2, ax2 = plt.subplots(figsize=(10, 6))
+            # Highlight peringkat 1 dengan warna merah
+            colors = ["#FF595E" if i == 0 else "#FFCA3A" for i in range(len(aov_data))]
+            sns.barplot(x='AOV', y='customer_state', data=aov_data, palette=colors, ax=ax2)
+            ax2.set_title("Top 10 State Berdasarkan AOV (Bed Bath Table)", fontsize=15)
+            st.pyplot(fig2)
 
-    with col_chart2:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(x='AOV', y='customer_state', data=aov_geo, palette='flare', ax=ax)
-        avg_aov = aov_geo['AOV'].mean()
-        ax.axvline(avg_aov, color='red', linestyle='--', label='Rata-rata AOV')
-        ax.set_title(f"AOV Wilayah - Kategori: {unggulan_name}", fontsize=14)
-        st.pyplot(fig)
+        with col_d:
+            st.write("### 📈 AOV Discovery")
+            st.success(f"State **{aov_data.customer_state.iloc[0]}** mencatatkan AOV tertinggi!")
+            st.write("Hal ini membuktikan bahwa wilayah di luar pusat ekonomi (Non-SP) memiliki potensi daya beli per transaksi yang lebih besar.")
+    else:
+        st.warning("Data kategori 'bed_bath_table' tidak ditemukan pada periode ini.")
 
-    with col_desc2:
-        st.write(f"### 📈 Tren AOV {unggulan_name}")
-        st.write(f"Kategori **{unggulan_name}** dipilih karena memiliki volume transaksi tertinggi.")
-        st.success(f"**Kesimpulan:** Wilayah **{aov_geo.customer_state.iloc[0]}** memiliki nilai transaksi rata-rata tertinggi sebesar BRL {aov_geo.AOV.iloc[0]:,.2f}.")
-
-# --- ANALISIS LANJUTAN (OPSIONAL): RFM ANALYSIS ---
+    # --- 6. ANALISIS RFM ---
     st.markdown("---")
     st.header("🎯 Analisis Lanjutan: RFM Analysis")
     
-    # 1. Hitung Parameter RFM
-    rfm_df = main_df.groupby(by="customer_unique_id", as_index=False).agg({
-        "order_purchase_timestamp": "max", 
-        "order_id": "nunique",             
-        "price": "sum"                     
+    rfm_df = main_df.groupby(by="customer_id", as_index=False).agg({
+        "order_purchase_timestamp": "max",
+        "order_id": "nunique",
+        "price": "sum"
     })
     rfm_df.columns = ["customer_id", "max_order_timestamp", "frequency", "monetary"]
-
-    # 2. Hitung Recency
     recent_date = main_df["order_purchase_timestamp"].max()
     rfm_df["recency"] = rfm_df["max_order_timestamp"].apply(lambda x: (recent_date - x).days)
 
-    # 3. Visualisasi 5 Pelanggan Terbaik
     col1, col2, col3 = st.columns(3)
-
     with col1:
-        st.subheader("Top Recency (Days)")
-        # Semakin kecil recency semakin baik, tapi bar chart biasanya nampilin yang 'terbesar'
-        # Kita ambil 5 pelanggan yang paling baru belanja
+        st.subheader("Recency (Days)")
         top_recency = rfm_df.sort_values(by="recency", ascending=True).head(5)
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots()
         sns.barplot(y="recency", x="customer_id", data=top_recency, palette="mako", ax=ax)
-        ax.set_title("Customers with Lowest Recency")
-        ax.set_xticks([]) # INI KUNCINYA: Menghilangkan ID yang numpuk
-        ax.set_xlabel("Top Customers")
+        ax.set_xticks([])
         st.pyplot(fig)
 
     with col2:
-        st.subheader("Top Frequency")
+        st.subheader("Frequency")
         top_freq = rfm_df.sort_values(by="frequency", ascending=False).head(5)
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots()
         sns.barplot(y="frequency", x="customer_id", data=top_freq, palette="mako", ax=ax)
-        ax.set_title("Customers with Highest Frequency")
-        ax.set_xticks([]) # Menghilangkan ID yang numpuk
-        ax.set_xlabel("Top Customers")
+        ax.set_xticks([])
         st.pyplot(fig)
 
     with col3:
-        st.subheader("Top Monetary")
+        st.subheader("Monetary")
         top_money = rfm_df.sort_values(by="monetary", ascending=False).head(5)
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots()
         sns.barplot(y="monetary", x="customer_id", data=top_money, palette="mako", ax=ax)
-        ax.set_title("Customers with Highest Monetary")
-        ax.set_xticks([]) # Menghilangkan ID yang numpuk
-        ax.set_xlabel("Top Customers")
+        ax.set_xticks([])
         st.pyplot(fig)
 
-    st.info("💡 **Tips Membaca:** Sumbu X sengaja dikosongkan karena berisi ID unik pelanggan yang panjang. Fokuslah pada tinggi batang yang menunjukkan perbandingan antar Top 5 pelanggan.")
-    
-    st.markdown("---")
     st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
+
+else:
+    st.error("File 'all_data.csv' tidak ditemukan. Pastikan file berada di folder yang sama dengan dashboard.py")
