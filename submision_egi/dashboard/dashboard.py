@@ -61,7 +61,7 @@ def create_delivery_time_df(df):
 
 
 def create_sum_order_items_df(df):
-    sum_df = df.groupby("product_category_name").agg({
+    sum_df = df.groupby("product_category_name_english").agg({
         "order_id": "count",
         "price": "sum"
     }).reset_index()
@@ -70,7 +70,7 @@ def create_sum_order_items_df(df):
 
 
 def create_rfm_df(df):
-    rfm_df = df.groupby("customer_unique_id").agg({
+    rfm_df = df.groupby("customer_id").agg({
         "order_purchase_timestamp": "max",
         "order_id": "nunique",
         "price": "sum"
@@ -109,13 +109,8 @@ all_df = pd.read_csv(file_path)
 # DATA CLEANING
 # =========================
 
-datetime_columns = [
-    "order_purchase_timestamp",
-    "order_delivered_customer_date"
-]
-
-for col in datetime_columns:
-    all_df[col] = pd.to_datetime(all_df[col])
+all_df["order_purchase_timestamp"] = pd.to_datetime(all_df["order_purchase_timestamp"])
+all_df["order_delivered_customer_date"] = pd.to_datetime(all_df["order_delivered_customer_date"])
 
 all_df.sort_values(by="order_purchase_timestamp", inplace=True)
 
@@ -137,7 +132,7 @@ with st.sidebar:
     )
 
 # =========================
-# FILTER DATA
+# FILTER
 # =========================
 
 main_df = all_df[
@@ -205,10 +200,14 @@ sns.histplot(delivery_time_df["delivery_time_days"], bins=30)
 st.pyplot(fig)
 
 # PRODUK
-st.subheader("Top Products")
+st.subheader("Top Product Categories")
 
 fig, ax = plt.subplots()
-sns.barplot(data=sum_order_items_df.head(5), x="price", y="product_category_name")
+sns.barplot(
+    data=sum_order_items_df.head(5),
+    x="price",
+    y="product_category_name_english"
+)
 st.pyplot(fig)
 
 # RFM
