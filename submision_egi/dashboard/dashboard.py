@@ -4,8 +4,9 @@ import seaborn as sns
 import streamlit as st
 import os
 
-# --- 1. KONFIGURASI HALAMAN ---
+# --- 1. KONFIGURASI ---
 st.set_page_config(page_title="E-Commerce Analytics | Egi Farhan", layout="wide")
+sns.set(style='dark')
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(current_dir, "all_data.csv")
@@ -14,115 +15,78 @@ file_path = os.path.join(current_dir, "all_data.csv")
 def load_data():
     if not os.path.exists(file_path):
         return None
-    try:
-        df = pd.read_csv(file_path)
-        if 'order_purchase_timestamp' in df.columns:
-            df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'], errors='coerce')
-        return df.dropna(subset=['order_purchase_timestamp'])
-    except:
-        return None
+    df = pd.read_csv(file_path)
+    if 'order_purchase_timestamp' in df.columns:
+        df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
+    return df
 
 all_df = load_data()
 
-# --- 2. LOGIKA FILTERING (SOLUSI NAMEERROR & DIAGRAM PASIF) ---
+# --- 2. LOGIKA UTAMA ---
 if all_df is not None:
-    # Set nilai default di awal agar tidak NameError
+    # Siapkan batas tanggal
     min_date = all_df["order_purchase_timestamp"].min().date()
     max_date = all_df["order_purchase_timestamp"].max().date()
-    start_date, end_date = min_date, max_date # Default value
 
     with st.sidebar:
         st.image("https://raw.githubusercontent.com/dicodingacademy/dicoding_datasets/main/logo_dicoding_collection.png", width=150)
-        st.title("🛒 E-Commerce Dashboard")
+        st.header("Filter Dashboard")
         
-        # Input dari user
+        # User memilih rentang waktu
         date_range = st.date_input(
-            label="Pilih Rentang Waktu",
+            label='Rentang Waktu',
             min_value=min_date,
             max_value=max_date,
             value=[min_date, max_date]
         )
+
+    # --- 3. PROSES FILTER (Kunci agar diagram berubah) ---
+    # Kita hanya jalankan kode di bawah jika user sudah pilih 2 tanggal (start & end)
+    if isinstance(date_range, list) and len(date_range) == 2:
+        start_date, end_date = date_range
         
-        # Pastikan start_date & end_date terisi dari input sidebar
-        if isinstance(date_range, list) and len(date_range) == 2:
-            start_date, end_date = date_range
+        # Filter data
+        main_df = all_df[(all_df["order_purchase_timestamp"].dt.date >= start_date) & 
+                         (all_df["order_purchase_timestamp"].dt.date <= end_date)]
 
-    # FILTER UTAMA: Gunakan .dt.date agar sinkron dengan input streamlit
-    main_df = all_df[(all_df["order_purchase_timestamp"].dt.date >= start_date) & 
-                     (all_df["order_purchase_timestamp"].dt.date <= end_date)]
+        # --- 4. TAMPILAN DASHBOARD ---
+        st.title('📊 Dashboard Analisis E-Commerce')
+        st.subheader(f"Periode: {start_date} s/d {end_date}")
 
-    # --- 3. HEADER & METRICS ---
-    st.title("📊 Dashboard Analisis E-Commerce")
-    # Sekarang baris ini tidak akan NameError lagi
-    st.markdown(f"Menampilkan performa dari: **{start_date}** hingga **{end_date}**")
+        # Metrics
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Order", f"{main_df.order_id.nunique():,}")
+        col2.metric("Total Revenue", f"BRL {main_df.price.sum():,.2f}")
+        col3.metric("Total Customer", f"{main_df.customer_id.nunique():,}")
 
-    col_m1, col_m2, col_m3 = st.columns(3)
-    with col_m1:
-        st.metric("Total Order", f"{main_df.order_id.nunique():,}")
-    with col_m2:
-        st.metric("Total Revenue", f"BRL {main_df.price.sum():,.2f}")
-    with col_m3:
-        avg_del = main_df['delivery_time'].mean() if 'delivery_time' in main_df.columns else 0
-        st.metric("Avg Delivery", f"{avg_del:.1f} Days")
+        st.divider()
 
-    st.markdown("---")
-
-    # --- 4. DIAGRAM 1: REVENUE PER STATE ---
-    st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
-    cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
-    
-    if not main_df.empty:
-        top_5_states = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
-        top_states_df = main_df[main_df['customer_state'].isin(top_5_states)]
+        # Diagram 1
+        st.subheader("Top Revenue per State")
+        state_rev = main_df.groupby("customer_state").price.sum().sort_values(ascending=False).reset_index().head(5)
         
-        top_product_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
-        top_product_state = top_product_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1)
-        top_product_state['label'] = top_product_state['customer_state'] + " (" + top_product_state[cat_col] + ")"
-        top_product_state = top_product_state.sort_values(by='price', ascending=False)
+        if not state_rev.empty:
+            fig, ax = plt.subplots(figsize=(10, 5))
+            colors = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(state_rev))]
+            sns.barplot(x="price", y="customer_state", data=state_rev, palette=colors, ax=ax)
+            st.pyplot(fig)
+        else:
+            st.warning("Data tidak tersedia untuk rentang waktu ini.")
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        colors_1 = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(top_product_state))]
-        sns.barplot(x='price', y='label', data=top_product_state, palette=colors_1, ax=ax)
-        st.pyplot(fig)
+        # Diagram RFM (Singkat)
+        st.subheader("Best Customer (Monetary)")
+        top_cust = main_df.groupby("customer_id").price.sum().sort_values(ascending=False).reset_index().head(5)
+        top_cust['short_id'] = top_cust['customer_id'].str[:5] + ".."
+        
+        fig2, ax2 = plt.subplots(figsize=(10, 5))
+        sns.barplot(x="price", y="short_id", data=top_cust, color="#0077b6", ax=ax2)
+        st.pyplot(fig2)
+
     else:
-        st.warning("Tidak ada data untuk rentang waktu ini.")
+        # Tampilan jika user baru pilih satu tanggal (saat mengklik kalender)
+        st.info("Silakan pilih rentang tanggal (Tanggal Mulai dan Tanggal Selesai) pada sidebar.")
 
-    # --- 5. DIAGRAM 2: RFM ANALYSIS ---
-    st.header("🎯 Analisis Lanjutan: RFM Analysis")
-    if not main_df.empty:
-        rfm_df = main_df.groupby(by="customer_id", as_index=False).agg({
-            "order_purchase_timestamp": "max",
-            "order_id": "nunique",
-            "price": "sum"
-        })
-        rfm_df.columns = ["customer_id", "max_order_timestamp", "frequency", "monetary"]
-        recent_date = main_df["order_purchase_timestamp"].max()
-        rfm_df["recency"] = rfm_df["max_order_timestamp"].apply(lambda x: (recent_date - x).days)
+    st.caption('Copyright © 2026 | Egi Farhan')
 
-        col_r, col_f, col_m = st.columns(3)
-        def short_id(df): return df['customer_id'].str[:5] + ".."
-
-        with col_r:
-            st.write("**Best Recency (Days)**")
-            top_r = rfm_df.sort_values(by="recency", ascending=True).head(5)
-            fig, ax = plt.subplots()
-            sns.barplot(y="recency", x=short_id(top_r), data=top_r, color="#0077b6", ax=ax)
-            st.pyplot(fig)
-
-        with col_f:
-            st.write("**Best Frequency**")
-            top_f = rfm_df.sort_values(by="frequency", ascending=False).head(5)
-            fig, ax = plt.subplots()
-            sns.barplot(y="frequency", x=short_id(top_f), data=top_f, color="#0077b6", ax=ax)
-            st.pyplot(fig)
-
-        with col_m:
-            st.write("**Best Monetary**")
-            top_m = rfm_df.sort_values(by="monetary", ascending=False).head(5)
-            fig, ax = plt.subplots()
-            sns.barplot(y="monetary", x=short_id(top_m), data=top_m, color="#0077b6", ax=ax)
-            st.pyplot(fig)
-
-    st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
 else:
-    st.error("Gagal memuat file all_data.csv.")
+    st.error("File all_data.csv tidak ditemukan di folder yang sama.")
