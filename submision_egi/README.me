@@ -1,45 +1,43 @@
-#  Dashboard Analisis E-Commerce Public Data
+# 📊 Dashboard Analisis E-Commerce Public Data
 
-## Tentang Proyek
-Proyek ini merupakan hasil akhir dari perjalanan belajar saya dalam mengeksplorasi data mentah menjadi informasi yang berharga. Dataset yang digunakan berasal dari **Olist E-Commerce**, sebuah platform perdagangan di Brasil. Melalui pengerjaan ini, saya menerapkan siklus analisis data mulai dari *Data Wrangling*, *Exploratory Data Analysis* (EDA), hingga penyajian visual melalui dashboard interaktif.
-
-## 🎯 Tujuan Bisnis
-Proyek ini dirancang untuk menjawab beberapa pertanyaan strategis:
-- **Demografi:** Mengetahui konsentrasi pasar berdasarkan lokasi geografis pelanggan.
-- **Efisiensi:** Mengukur seberapa baik layanan pengiriman sampai ke tangan konsumen.
-- **Produktivitas:** Mengidentifikasi kategori barang yang menjadi tulang punggung pendapatan perusahaan.
-- **Loyalitas:** Mengenali perilaku belanja pelanggan melalui pemodelan RFM.
+## 📝 Tentang Proyek
+Proyek ini merupakan hasil akhir dari perjalanan belajar saya dalam mengeksplorasi data mentah menjadi informasi bisnis yang berharga. Dataset yang digunakan berasal dari **Olist E-Commerce**, sebuah platform perdagangan di Brasil. Melalui pengerjaan ini, saya menerapkan siklus analisis data mulai dari *Data Wrangling*, *Exploratory Data Analysis* (EDA), hingga penyajian visual melalui dashboard interaktif menggunakan **Streamlit**.
 
 ---
 
-##  Fitur Utama Dashboard
-Dashboard ini tidak hanya statis, tetapi memiliki beberapa fitur interaktif:
-* **Filter Rentang Waktu:** Pengguna dapat menentukan periode data yang ingin dianalisis melalui sidebar.
-* **Metrik Real-time:** Menampilkan angka total pesanan dan pendapatan secara instan berdasarkan filter yang dipilih.
-* **Visualisasi Komparatif:** Menggunakan skema warna yang menyoroti kategori terbaik (Top Performing) untuk mempercepat pengambilan keputusan.
-* **Analisis Lanjutan:** Segmentasi RFM yang sudah disederhanakan untuk audiens bisnis.
+## 🎯 Pertanyaan Bisnis & Tujuan
+Dashboard ini dirancang secara spesifik untuk menjawab beberapa tantangan strategis:
+1. **Profitabilitas Produk:** Mengidentifikasi kategori produk yang memberikan kontribusi pendapatan terbesar di 5 negara bagian (*state*) pemimpin pasar, khususnya dominasi kategori **Bed Bath Table**.
+2. **Potensi Nilai Transaksi (AOV):** Menganalisis *Average Order Value* pada wilayah-wilayah di Brazil untuk menemukan area dengan daya beli per transaksi tertinggi (Non-SP vs SP).
+3. **Loyalitas & Perilaku:** Mengenali pola belanja pelanggan melalui pemodelan **RFM Analysis** (*Recency, Frequency, Monetary*) untuk menentukan strategi retensi pelanggan.
 
 ---
 
-## 📂 Panduan Struktur Direktori
+## ✨ Fitur Utama Dashboard
+Dashboard ini dibangun agar interaktif, efisien, dan mudah dipahami:
+* **Filter Rentang Waktu:** Pengguna dapat menentukan periode data yang ingin dianalisis melalui sidebar secara dinamis.
+* **Metrik Real-time:** Menampilkan angka total pesanan, pendapatan, dan rata-rata waktu pengiriman secara instan berdasarkan filter.
+* **Visualisasi Komparatif:** Menggunakan skema warna yang menyoroti kategori terbaik (*Top Performing*) untuk mempercepat pengambilan keputusan.
+* **Analisis Lanjutan (RFM):** Segmentasi pelanggan yang disajikan dengan teknik *Short ID* agar grafik tetap rapi dan mudah dibaca oleh audiens bisnis.
+
+---
+
+## 📂 Struktur Direktori
 Penyusunan file dilakukan secara sistematis untuk memudahkan pemeliharaan:
 - `dashboard/`:
     - `dashboard.py`: Script utama aplikasi Streamlit dengan logika visualisasi.
-    - `all_data.csv`: Versi dataset yang sudah dibersihkan dan dipangkas (thinning) untuk performa dashboard yang cepat.
+    - `all_data.csv`: Versi dataset yang sudah dibersihkan dan dipangkas (*thinning*) untuk performa dashboard yang cepat.
 - `data/`: Koleksi file CSV mentah sebagai sumber data awal.
-- `Proyek_Analisis_Data.ipynb`: Dokumentasi teknis alur analisis (Data Cleaning, Outlier Handling, dll).
-- `requirements.txt`: Daftar pustaka Python yang wajib ada di environment.
-- `url.txt`: Tautan langsung menuju dashboard online.
+- `Proyek_Analisis_Data.ipynb`: Dokumentasi teknis alur analisis (Data Cleaning, EDA, RFM).
+- `requirements.txt`: Daftar library Python yang wajib ada di environment (Pandas, Seaborn, Streamlit).
 
 ---
 
 ## 🛠️ Instalasi & Persiapan Lokal
 
-Jika kamu ingin bereksperimen dengan dashboard ini di komputer pribadimu:
+Jika ingin menjalankan dashboard ini di komputer pribadi:
 
-1. **Siapkan Environment:**
-   Gunakan Anaconda atau Python virtual environment.
+1. **Clone Repositori:**
    ```bash
-   conda create --name olist-analysis python=3.9
-   conda activate olist-analysis
-   pip install -r requirements.txt
+   git clone [https://github.com/efrazz23/Submission-analisis-data](https://github.com/efrazz23/Submission-analisis-data)
+   cd nama-repo
