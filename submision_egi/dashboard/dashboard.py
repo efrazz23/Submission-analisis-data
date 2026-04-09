@@ -53,26 +53,40 @@ if all_df is not None:
 
     st.markdown("---")
 
-  # --- 4. PERTANYAAN 1: REVENUE PER STATE & PRODUCT ---
+    # --- 4. PERTANYAAN 1: REVENUE PER STATE & PRODUCT ---
     st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
     
-    # ... (kode filter top_5_states tetap sama) ...
+    # Menentukan kolom kategori
+    cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
+    
+    # Mencari 5 state terbesar
+    top_5_states = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
+    top_states_df = main_df[main_df['customer_state'].isin(top_5_states)]
+    
+    # Mencari kategori juara per state
+    top_product_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
+    top_product_state = top_product_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1)
 
-    # BUAT LABEL GABUNGAN (Ini kuncinya agar sama seperti di Colab)
+    # Membuat Label Gabungan (Sesuai tampilan Colab kamu)
     top_product_state['label'] = top_product_state['customer_state'] + " (" + top_product_state[cat_col] + ")"
     top_product_state = top_product_state.sort_values(by='price', ascending=False)
 
     col_chart1, col_insight1 = st.columns([2, 1])
     with col_chart1:
         fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # GUNAKAN 'label' sebagai sumbu Y, bukan 'customer_state'
         sns.barplot(x='price', y='label', data=top_product_state, palette='viridis', ax=ax)
-        
         ax.set_title("Produk dengan Revenue Tertinggi di 5 State Terbesar", fontsize=15)
         ax.set_xlabel("Total Revenue (BRL)")
-        ax.set_ylabel("Negara Bagian (Kategori Produk)") # Update label sumbu Y
+        ax.set_ylabel("Negara Bagian (Kategori Produk)")
         st.pyplot(fig)
+    
+    with col_insight1:
+        st.write("### 📌 Insight Wilayah")
+        st.markdown("""
+        * **Pusat Ekonomi:** Negara bagian **SP (São Paulo)** mendominasi mutlak pendapatan.
+        * **Kategori Unggulan:** **Bed Bath Table** menjadi penggerak utama di wilayah padat.
+        * **Saran:** Fokuskan stok dan marketing pada kategori kebutuhan personal di wilayah ekonomi tinggi.
+        """)
 
     # --- 5. PERTANYAAN 2: AOV ANALYSIS ---
     st.header("2. Analisis AOV Kategori 'Bed Bath Table'")
@@ -88,15 +102,15 @@ if all_df is not None:
             fig2, ax2 = plt.subplots(figsize=(10, 6))
             colors = ["#FF595E" if i == 0 else "#FFCA3A" for i in range(len(aov_data))]
             sns.barplot(x='AOV', y='customer_state', data=aov_data, palette=colors, ax=ax2)
-            ax2.set_title("Top 10 State by AOV", fontsize=15)
+            ax2.set_title("Top 10 State by AOV (Bed Bath Table)", fontsize=15)
             st.pyplot(fig2)
         
         with col_insight2:
             st.write("### 📈 AOV Discovery")
             st.success(f"**{aov_data.customer_state.iloc[0]}** memimpin AOV!")
             st.markdown("""
-            * **Daya Beli Luar Kota:** Wilayah luar pusat ekonomi (Non-SP) ternyata punya AOV lebih tinggi.
-            * **Logika:** Pelanggan di wilayah jauh cenderung belanja dalam jumlah besar/mahal sekaligus untuk menghemat logistik.
+            * **Daya Beli Luar Kota:** Wilayah Non-SP ternyata punya AOV lebih tinggi.
+            * **Strategi:** Pelanggan di wilayah jauh cenderung melakukan pembelian bernilai tinggi sekaligus.
             """)
 
     # --- 6. RFM ANALYSIS ---
@@ -139,13 +153,6 @@ if all_df is not None:
         sns.barplot(y="monetary", x="display_id", data=top_m, palette="Oranges_r", ax=ax)
         st.pyplot(fig)
 
-    st.write("### 🧠 RFM Strategy Insight")
-    st.info("""
-    * **Retention Issue:** Mayoritas pelanggan adalah *One-Time Buyers*.
-    * **Whales:** Segmen 'Monetary' tinggi adalah penentu profitabilitas utama.
-    * **Action:** Gunakan strategi *Win-Back* untuk pelanggan dengan Monetary tinggi namun Recency mulai menjauh.
-    """)
-
     st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
 else:
-    st.error("File 'all_data.csv' tidak ditemukan atau kosong.")
+    st.error("File 'all_data.csv' tidak ditemukan atau gagal dimuat.")
