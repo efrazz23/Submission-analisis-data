@@ -4,9 +4,10 @@ import seaborn as sns
 import streamlit as st
 import os
 
-# --- 1. KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="E-Commerce Analytics | Egi Farhan", layout="wide")
+# Set style seaborn agar rapi seperti punya temanmu
+sns.set(style='dark')
 
+# --- 1. LOAD DATA ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(current_dir, "all_data.csv")
 
@@ -14,90 +15,71 @@ file_path = os.path.join(current_dir, "all_data.csv")
 def load_data():
     if not os.path.exists(file_path):
         return None
-    try:
-        df = pd.read_csv(file_path)
-        # Pastikan kolom waktu adalah datetime agar filter berfungsi
-        if 'order_purchase_timestamp' in df.columns:
-            df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'], errors='coerce')
-        return df.dropna(subset=['order_purchase_timestamp'])
-    except:
-        return None
+    df = pd.read_csv(file_path)
+    if 'order_purchase_timestamp' in df.columns:
+        df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
+    return df
 
 all_df = load_data()
 
-# --- 2. LOGIKA SIDEBAR & FILTERING ---
 if all_df is not None:
+    # --- 2. SIDEBAR ---
     with st.sidebar:
-        # FIX LOGO: Menggunakan URL resmi Dicoding agar tidak pecah/hilang
+        # Gunakan logo resmi Dicoding Collection yang pasti jalan
         st.image("https://raw.githubusercontent.com/dicodingacademy/dicoding_datasets/main/logo_dicoding_collection.png", width=150)
-        st.title("🛒 E-Commerce Dashboard")
+        st.header("Filter Dashboard")
         
-        min_date, max_date = all_df["order_purchase_timestamp"].min(), all_df["order_purchase_timestamp"].max()
+        min_date = all_df["order_purchase_timestamp"].min()
+        max_date = all_df["order_purchase_timestamp"].max()
         
-        # Mengambil input rentang waktu dari user
-        try:
-            date_range = st.date_input(
-                label='Rentang Waktu',
-                min_value=min_date,
-                max_value=max_date,
-                value=[min_date, max_date]
-            )
-        except:
-            date_range = [min_date, max_date]
+        # Ambil input rentang waktu
+        date_range = st.date_input(
+            label='Rentang Waktu',
+            min_value=min_date,
+            max_value=max_date,
+            value=[min_date, max_date]
+        )
 
-    # --- KRUSIAL: Filter Data Berdasarkan Input ---
+    # --- 3. PROSES FILTER (INI KUNCINYA) ---
     if isinstance(date_range, list) and len(date_range) == 2:
         start_date, end_date = date_range
-        # main_df inilah yang harus digunakan untuk SEMUA grafik di bawah
-        main_df = all_df[(all_df["order_purchase_timestamp"] >= pd.to_datetime(start_date)) & 
-                         (all_df["order_purchase_timestamp"] <= pd.to_datetime(end_date))]
+        # Filter tanpa menggunakan str() agar sinkron dengan datetime
+        main_df = all_df[(all_df["order_purchase_timestamp"].dt.date >= start_date) & 
+                         (all_df["order_purchase_timestamp"].dt.date <= end_date)]
     else:
         main_df = all_df
 
-    # --- 3. DASHBOARD UTAMA ---
-    st.title("📊 Performa E-Commerce")
-    st.write(f"Data di bawah difilter untuk periode: **{main_df['order_purchase_timestamp'].min().date()}** s/d **{main_df['order_purchase_timestamp'].max().date()}**")
-
-    # --- 4. VISUALISASI 1: TOP REVENUE PER STATE ---
-    st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
+    # --- 4. MAIN CONTENT ---
+    st.title('E-Commerce Analysis Dashboard 🛒')
     
-    # Gunakan main_df (Hasil filter)
-    cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
-    top_5_states = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
-    top_states_df = main_df[main_df['customer_state'].isin(top_5_states)]
-    
-    top_product_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
-    top_product_state = top_product_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1)
-    top_product_state['label'] = top_product_state['customer_state'] + " (" + top_product_state[cat_col] + ")"
-    top_product_state = top_product_state.sort_values(by='price', ascending=False)
-
-    col1, col2 = st.columns([2, 1])
+    # Metrik di bagian atas
+    col1, col2 = st.columns(2)
     with col1:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        # Highlight satu warna untuk pemenang (Prinsip Integritas Visual)
-        colors = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(top_product_state))]
-        sns.barplot(x='price', y='label', data=top_product_state, palette=colors, ax=ax)
-        ax.set_title("Top Revenue per State & Category", fontsize=15)
-        st.pyplot(fig)
-    
+        st.metric("Total Revenue", value=f"BRL {main_df.price.sum():,.2f}")
     with col2:
-        st.write("### 📌 Insight")
-        st.info(f"Total revenue pada periode ini adalah **BRL {main_df['price'].sum():,.2f}**")
+        st.metric("Total Orders", value=f"{main_df.order_id.nunique():,}")
 
-    # --- 5. VISUALISASI 2: AOV ANALYSIS ---
-    st.header("2. Average Order Value (AOV) 'Bed Bath Table'")
-    cama_df = main_df[main_df[cat_col] == 'bed_bath_table']
+    st.divider()
+
+    # --- 5. GRAFIK (Prinsip Integritas Visual) ---
+    st.subheader('Profitabilitas Berdasarkan State')
     
-    if not cama_df.empty:
-        aov_data = cama_df.groupby('customer_state').agg({'price': 'sum', 'order_id': 'nunique'})
-        aov_data['AOV'] = aov_data['price'] / aov_data['order_id']
-        aov_data = aov_data.sort_values('AOV', ascending=False).head(10).reset_index()
+    state_revenue = main_df.groupby("customer_state").price.sum().sort_values(ascending=False).reset_index().head(5)
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    # WARNA SERAGAM: Satu highlight biru, sisanya abu-abu (Sesuai mau Reviewer!)
+    colors = ["#72BCD4" if i == 0 else "#D3D3D3" for i in range(len(state_revenue))]
+    
+    sns.barplot(x="price", y="customer_state", data=state_revenue, palette=colors, ax=ax)
+    ax.set_title("Top 5 State dengan Pendapatan Tertinggi", fontsize=15)
+    ax.set_xlabel("Total Revenue (BRL)")
+    ax.set_ylabel(None)
+    st.pyplot(fig)
 
-        fig2, ax2 = plt.subplots(figsize=(10, 6))
-        colors_aov = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(aov_data))]
-        sns.barplot(x='AOV', y='customer_state', data=aov_data, palette=colors_aov, ax=ax2)
-        st.pyplot(fig2)
+    # RFM Singkat (Opsional, agar dashboard lebih "berisi" dari temanmu)
+    st.subheader("Ringkasan RFM")
+    st.write(f"Data periode: {start_date} sampai {end_date}")
 
-    st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
+    st.caption('Copyright (c) 2026 - Egi Farhan')
 else:
-    st.error("Gagal memuat file all_data.csv. Periksa apakah file ada di folder yang sama.")
+    st.error("File all_data.csv tidak ditemukan di folder dashboard!")
