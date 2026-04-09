@@ -5,9 +5,6 @@ import streamlit as st
 from babel.numbers import format_currency
 import os
 
-# =========================
-# STYLE
-# =========================
 sns.set(style='darkgrid')
 
 # =========================
@@ -32,8 +29,6 @@ def create_daily_orders_df(df):
 
 
 def create_bycity_df(df):
-    df = df[df["order_status"] == "delivered"]
-
     bycity_df = df.groupby("customer_city")["customer_id"].nunique().reset_index()
     bycity_df.rename(columns={"customer_id": "customer_count"}, inplace=True)
 
@@ -41,8 +36,6 @@ def create_bycity_df(df):
 
 
 def create_bystate_df(df):
-    df = df[df["order_status"] == "delivered"]
-
     bystate_df = df.groupby("customer_state")["customer_id"].nunique().reset_index()
     bystate_df.rename(columns={"customer_id": "customer_count"}, inplace=True)
 
@@ -100,7 +93,7 @@ def create_rfm_df(df):
 
 
 # =========================
-# LOAD DATA (AMAN)
+# LOAD DATA
 # =========================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -127,7 +120,7 @@ for col in datetime_columns:
 all_df.sort_values(by="order_purchase_timestamp", inplace=True)
 
 # =========================
-# SIDEBAR (PAKAI INTERNET LOGO ✅)
+# SIDEBAR
 # =========================
 
 min_date = all_df["order_purchase_timestamp"].min()
@@ -144,7 +137,7 @@ with st.sidebar:
     )
 
 # =========================
-# FILTER DATA (FIX UTAMA)
+# FILTER DATA
 # =========================
 
 main_df = all_df[
@@ -167,12 +160,9 @@ rfm_df = create_rfm_df(main_df)
 # DASHBOARD
 # =========================
 
-st.header("📊 E-Commerce Public Dashboard")
+st.header("📊 E-Commerce Dashboard")
 
-# =========================
 # DAILY ORDERS
-# =========================
-
 st.subheader("Daily Orders")
 
 col1, col2 = st.columns(2)
@@ -186,137 +176,45 @@ with col2:
         format_currency(daily_orders_df["revenue"].sum(), "USD", locale="en_US")
     )
 
-fig, ax = plt.subplots(figsize=(12, 6))
-ax.plot(
-    daily_orders_df["order_purchase_timestamp"],
-    daily_orders_df["order_count"],
-    marker='o'
-)
-ax.set_title("Daily Orders Trend")
+fig, ax = plt.subplots()
+ax.plot(daily_orders_df["order_purchase_timestamp"], daily_orders_df["order_count"])
 st.pyplot(fig)
 
-# =========================
-# DEMOGRAPHICS
-# =========================
-
+# DEMOGRAFI
 st.subheader("Customer Demographics")
 
-color_main = "#4CAF50"
-
 col1, col2 = st.columns(2)
 
 with col1:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.barplot(
-        data=bystate_df.head(5),
-        x="customer_count",
-        y="customer_state",
-        color=color_main
-    )
-    ax.set_title("Top 5 States")
+    fig, ax = plt.subplots()
+    sns.barplot(data=bystate_df.head(5), x="customer_count", y="customer_state")
     st.pyplot(fig)
 
 with col2:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.barplot(
-        data=bycity_df.head(5),
-        x="customer_count",
-        y="customer_city",
-        color=color_main
-    )
-    ax.set_title("Top 5 Cities")
+    fig, ax = plt.subplots()
+    sns.barplot(data=bycity_df.head(5), x="customer_count", y="customer_city")
     st.pyplot(fig)
 
-st.caption("Demografi berdasarkan order status delivered")
-
-# =========================
-# DELIVERY TIME
-# =========================
-
+# DELIVERY
 st.subheader("Delivery Time Analysis")
 
-col1, col2 = st.columns(2)
+st.metric("Avg Delivery", round(delivery_time_df["delivery_time_days"].mean(), 1))
 
-with col1:
-    st.metric(
-        "Average Delivery (Days)",
-        round(delivery_time_df["delivery_time_days"].mean(), 1)
-    )
-
-with col2:
-    st.metric(
-        "Max Delay (Days)",
-        delivery_time_df["delivery_time_days"].max()
-    )
-
-fig, ax = plt.subplots(figsize=(10, 5))
+fig, ax = plt.subplots()
 sns.histplot(delivery_time_df["delivery_time_days"], bins=30)
-ax.set_title("Distribution of Delivery Time")
 st.pyplot(fig)
 
-# =========================
-# PRODUCT PERFORMANCE
-# =========================
+# PRODUK
+st.subheader("Top Products")
 
-st.subheader("Best Performing Product Categories")
+fig, ax = plt.subplots()
+sns.barplot(data=sum_order_items_df.head(5), x="price", y="product_category_name")
+st.pyplot(fig)
 
-col1, col2 = st.columns(2)
-
-with col1:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.barplot(
-        data=sum_order_items_df.head(5),
-        x="order_id",
-        y="product_category_name",
-        color=color_main
-    )
-    ax.set_title("Top by Volume")
-    st.pyplot(fig)
-
-with col2:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.barplot(
-        data=sum_order_items_df.head(5),
-        x="price",
-        y="product_category_name",
-        color=color_main
-    )
-    ax.set_title("Top by Revenue")
-    st.pyplot(fig)
-
-# =========================
-# RFM ANALYSIS
-# =========================
-
+# RFM
 st.subheader("RFM Analysis")
 
-col1, col2, col3 = st.columns(3)
+st.metric("Avg Recency", round(rfm_df["recency"].mean(), 1))
 
-with col1:
-    st.metric("Avg Recency", round(rfm_df["recency"].mean(), 1))
-
-with col2:
-    st.metric("Avg Frequency", round(rfm_df["frequency"].mean(), 2))
-
-with col3:
-    st.metric(
-        "Avg Monetary",
-        format_currency(rfm_df["monetary"].mean(), "USD", locale="en_US")
-    )
-
-fig, ax = plt.subplots(figsize=(10, 5))
-top_customers = rfm_df.sort_values(by="monetary", ascending=False).head(5)
-sns.barplot(
-    data=top_customers,
-    x="monetary",
-    y="customer_id",
-    color=color_main
-)
-ax.set_title("Top Customers by Monetary")
-st.pyplot(fig)
-
-# =========================
 # FOOTER
-# =========================
-
-st.caption("© 2026 Dicoding Submission Dashboard")
+st.caption("© 2026 Dicoding Submission")
