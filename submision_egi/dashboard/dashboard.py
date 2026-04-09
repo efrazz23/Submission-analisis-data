@@ -17,7 +17,6 @@ def load_data():
     try:
         df = pd.read_csv(file_path)
         if 'order_purchase_timestamp' in df.columns:
-            # Pastikan format datetime benar
             df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'], errors='coerce')
         return df.dropna(subset=['order_purchase_timestamp'])
     except:
@@ -25,20 +24,18 @@ def load_data():
 
 all_df = load_data()
 
-# --- 2. LOGIKA SIDEBAR & FILTERING ---
+# --- 2. LOGIKA FILTERING (SOLUSI NAMEERROR & DIAGRAM PASIF) ---
 if all_df is not None:
+    # Set nilai default di awal agar tidak NameError
+    min_date = all_df["order_purchase_timestamp"].min().date()
+    max_date = all_df["order_purchase_timestamp"].max().date()
+    start_date, end_date = min_date, max_date # Default value
+
     with st.sidebar:
-        # Gunakan logo resmi agar dashboard terlihat profesional
         st.image("https://raw.githubusercontent.com/dicodingacademy/dicoding_datasets/main/logo_dicoding_collection.png", width=150)
         st.title("🛒 E-Commerce Dashboard")
-        st.subheader("Data Analysis Project")
         
-        # Ambil batas tanggal dari data
-        min_date = all_df["order_purchase_timestamp"].min().date()
-        max_date = all_df["order_purchase_timestamp"].max().date()
-
-        st.write("**Filter Rentang Waktu**")
-        # Mengambil input dari user
+        # Input dari user
         date_range = st.date_input(
             label="Pilih Rentang Waktu",
             min_value=min_date,
@@ -46,17 +43,17 @@ if all_df is not None:
             value=[min_date, max_date]
         )
         
-    # --- KRUSIAL: Proses filter agar diagram BERGANTI ---
-    if isinstance(date_range, list) and len(date_range) == 2:
-        start_date, end_date = date_range
-        # Filter dilakukan dengan mencocokkan .dt.date agar tipe datanya sama-sama 'date'
-        main_df = all_df[(all_df["order_purchase_timestamp"].dt.date >= start_date) & 
-                         (all_df["order_purchase_timestamp"].dt.date <= end_date)]
-    else:
-        main_df = all_df
+        # Pastikan start_date & end_date terisi dari input sidebar
+        if isinstance(date_range, list) and len(date_range) == 2:
+            start_date, end_date = date_range
+
+    # FILTER UTAMA: Gunakan .dt.date agar sinkron dengan input streamlit
+    main_df = all_df[(all_df["order_purchase_timestamp"].dt.date >= start_date) & 
+                     (all_df["order_purchase_timestamp"].dt.date <= end_date)]
 
     # --- 3. HEADER & METRICS ---
     st.title("📊 Dashboard Analisis E-Commerce")
+    # Sekarang baris ini tidak akan NameError lagi
     st.markdown(f"Menampilkan performa dari: **{start_date}** hingga **{end_date}**")
 
     col_m1, col_m2, col_m3 = st.columns(3)
@@ -65,13 +62,12 @@ if all_df is not None:
     with col_m2:
         st.metric("Total Revenue", f"BRL {main_df.price.sum():,.2f}")
     with col_m3:
-        # Hitung rata-rata pengiriman jika kolom ada
         avg_del = main_df['delivery_time'].mean() if 'delivery_time' in main_df.columns else 0
         st.metric("Avg Delivery", f"{avg_del:.1f} Days")
 
     st.markdown("---")
 
-    # --- 4. PERTANYAAN 1: REVENUE PER STATE & CATEGORY ---
+    # --- 4. DIAGRAM 1: REVENUE PER STATE ---
     st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
     cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
     
@@ -84,49 +80,15 @@ if all_df is not None:
         top_product_state['label'] = top_product_state['customer_state'] + " (" + top_product_state[cat_col] + ")"
         top_product_state = top_product_state.sort_values(by='price', ascending=False)
 
-        col_chart1, col_insight1 = st.columns([2, 1])
-        with col_chart1:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            # Warna Seragam dengan satu Highlight Biru
-            colors_1 = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(top_product_state))]
-            sns.barplot(x='price', y='label', data=top_product_state, palette=colors_1, ax=ax)
-            ax.set_title("Kategori Revenue Tertinggi di 5 State Terbesar", fontsize=15)
-            st.pyplot(fig)
-        
-        with col_insight1:
-            st.write("### 📌 Insight Wilayah")
-            st.info(f"Wilayah **{top_product_state.customer_state.iloc[0]}** adalah penyumbang terbesar.")
-            st.markdown("* Batang biru menunjukkan pemenang performa pada periode yang dipilih.")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        colors_1 = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(top_product_state))]
+        sns.barplot(x='price', y='label', data=top_product_state, palette=colors_1, ax=ax)
+        st.pyplot(fig)
     else:
-        st.warning("Data tidak tersedia untuk rentang waktu ini.")
+        st.warning("Tidak ada data untuk rentang waktu ini.")
 
-    # --- 5. PERTANYAAN 2: AOV ANALYSIS ---
-    st.header("2. Average Order Value (AOV) 'Bed Bath Table'")
-    cama_df = main_df[main_df[cat_col] == 'bed_bath_table']
-    
-    if not cama_df.empty:
-        aov_data = cama_df.groupby('customer_state').agg({'price': 'sum', 'order_id': 'nunique'})
-        aov_data['AOV'] = aov_data['price'] / aov_data['order_id']
-        aov_data = aov_data.sort_values('AOV', ascending=False).head(10).reset_index()
-
-        col_chart2, col_insight2 = st.columns([2, 1])
-        with col_chart2:
-            fig2, ax2 = plt.subplots(figsize=(10, 6))
-            colors_2 = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(aov_data))]
-            sns.barplot(x='AOV', y='customer_state', data=aov_data, palette=colors_2, ax=ax2)
-            ax2.set_title("Top 10 State by AOV (Bed Bath Table)", fontsize=15)
-            st.pyplot(fig2)
-        
-        with col_insight2:
-            st.write("### 📈 AOV Discovery")
-            st.success(f"Daya beli tertinggi ada di **{aov_data.customer_state.iloc[0]}**.")
-    else:
-        st.write("Tidak ada data transaksi kategori 'Bed Bath Table' di periode ini.")
-
-    # --- 6. RFM ANALYSIS ---
-    st.markdown("---")
+    # --- 5. DIAGRAM 2: RFM ANALYSIS ---
     st.header("🎯 Analisis Lanjutan: RFM Analysis")
-    
     if not main_df.empty:
         rfm_df = main_df.groupby(by="customer_id", as_index=False).agg({
             "order_purchase_timestamp": "max",
@@ -163,4 +125,4 @@ if all_df is not None:
 
     st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
 else:
-    st.error("Gagal memuat file all_data.csv. Pastikan file berada dalam folder yang sama.")
+    st.error("Gagal memuat file all_data.csv.")
