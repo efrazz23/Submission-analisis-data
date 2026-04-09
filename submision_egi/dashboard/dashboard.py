@@ -5,7 +5,7 @@ import streamlit as st
 from babel.numbers import format_currency
 import os
 
-# --- 1. KONFIGURASI ---
+# --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="E-Commerce Public Dashboard", layout="wide")
 sns.set(style='dark')
 
@@ -19,46 +19,26 @@ def create_daily_orders_df(df):
     daily_orders_df.rename(columns={"order_id": "order_count", "price": "revenue"}, inplace=True)
     return daily_orders_df
 
-def create_bycity_df(df):
-    # Cek nama kolom yang benar untuk city
-    col = 'customer_city' if 'customer_city' in df.columns else 'city'
-    bycity_df = df.groupby(by=col).customer_id.nunique().reset_index()
-    bycity_df.rename(columns={"customer_id": "customer_count"}, inplace=True)
-    return bycity_df.sort_values(by="customer_count", ascending=False)
-
-def create_bystate_df(df):
-    # Cek nama kolom yang benar untuk state
-    col = 'customer_state' if 'customer_state' in df.columns else 'state'
-    bystate_df = df.groupby(by=col).customer_id.nunique().reset_index()
-    bystate_df.rename(columns={"customer_id": "customer_count"}, inplace=True)
-    return bystate_df.sort_values(by="customer_count", ascending=False)
-
-def create_delivery_time_df(df):
-    delivery_df = df.dropna(subset=['order_purchase_timestamp', 'order_delivered_customer_date']).copy()
-    delivery_df = delivery_df.drop_duplicates(subset=['order_id'])
-    delivery_time = delivery_df["order_delivered_customer_date"] - delivery_df["order_purchase_timestamp"]
-    delivery_df["delivery_time_days"] = delivery_time.apply(lambda x: x.total_seconds() / 86400)
-    return delivery_df
-
 def create_sum_order_items_df(df):
-    # SOLUSI KEYERROR: Cek mana kolom kategori yang ada
-    if 'product_category_name_english' in df.columns:
-        cat_col = 'product_category_name_english'
-    elif 'product_category_name' in df.columns:
-        cat_col = 'product_category_name'
-    else:
-        # Jika tidak ada dua-duanya, kita buat dummy kategori agar tidak error
+    # Mencari kolom kategori yang tersedia (english atau original)
+    cat_col = 'product_category_name_english' if 'product_category_name_english' in df.columns else 'product_category_name'
+    if cat_col not in df.columns:
         return pd.DataFrame(columns=['category', 'order_id', 'price'])
-
+    
     sum_order_items_df = df.groupby(cat_col).agg({
         "order_id": "count",
         "price": "sum"
     }).reset_index()
     sum_order_items_df.rename(columns={cat_col: "category"}, inplace=True)
-    return sum_order_items_df.sort_values(by="price", ascending=False)
+    return sum_order_items_df
+
+def create_bystate_df(df):
+    col = 'customer_state' if 'customer_state' in df.columns else 'state'
+    bystate_df = df.groupby(by=col).customer_id.nunique().reset_index()
+    bystate_df.rename(columns={"customer_id": "customer_count"}, inplace=True)
+    return bystate_df.sort_values(by="customer_count", ascending=False)
 
 def create_rfm_df(df):
-    # Gunakan customer_unique_id jika ada, jika tidak pakai customer_id biasa
     cust_col = 'customer_unique_id' if 'customer_unique_id' in df.columns else 'customer_id'
     rfm_df = df.groupby(by=cust_col, as_index=False).agg({
         "order_purchase_timestamp": "max",
@@ -78,24 +58,24 @@ file_path = os.path.join(current_dir, "all_data.csv")
 @st.cache_data
 def load_data():
     df = pd.read_csv(file_path)
-    datetime_columns = ["order_purchase_timestamp", "order_delivered_customer_date"]
-    for column in datetime_columns:
-        if column in df.columns:
-            df[column] = pd.to_datetime(df[column])
+    if 'order_purchase_timestamp' in df.columns:
+        df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
     return df
 
 all_df = load_data()
 
-# --- 4. FILTER ---
+# --- 4. SIDEBAR FILTER ---
 min_date = all_df["order_purchase_timestamp"].min().date()
 max_date = all_df["order_purchase_timestamp"].max().date()
 
 with st.sidebar:
     st.image("https://github.com/dicodingacademy/assets/raw/main/logo.png")
+    st.header("Filter Rentang Waktu")
+    
+    # Try-except untuk menangani transisi pemilihan tanggal
     try:
-        # Menggunakan format tuple untuk default value agar lebih stabil
         date_range = st.date_input(
-            label="Rentang Waktu",
+            label="Pilih Periode",
             min_value=min_date,
             max_value=max_date,
             value=(min_date, max_date)
@@ -104,51 +84,98 @@ with st.sidebar:
     except:
         start_date, end_date = min_date, max_date
 
+# Filter data utama
 main_df = all_df[(all_df["order_purchase_timestamp"].dt.date >= start_date) & 
                  (all_df["order_purchase_timestamp"].dt.date <= end_date)]
 
-# --- 5. EXECUTION ---
+# --- 5. MENYIAPKAN DATAFRAME ---
 daily_orders_df = create_daily_orders_df(main_df)
-bycity_df = create_bycity_df(main_df)
-bystate_df = create_bystate_df(main_df)
-delivery_time_df = create_delivery_time_df(main_df)
 sum_order_items_df = create_sum_order_items_df(main_df)
+bystate_df = create_bystate_df(main_df)
 rfm_df = create_rfm_df(main_df)
 
-# --- 6. UI DASHBOARD ---
+# --- 6. LAYOUT DASHBOARD ---
 st.header('E-Commerce Public Dashboard :sparkles:')
 
-# 1. Metrics
+# Section 1: Daily Orders
+st.subheader('Daily Orders')
 col1, col2 = st.columns(2)
 with col1:
     st.metric("Total orders", value=daily_orders_df.order_count.sum())
 with col2:
-    total_revenue = format_currency(daily_orders_df.revenue.sum(), "BRL", locale='pt_BR') 
-    st.metric("Total Revenue", value=total_revenue)
+    total_rev = format_currency(daily_orders_df.revenue.sum(), "BRL", locale='pt_BR')
+    st.metric("Total Revenue", value=total_rev)
 
-# 2. Daily Orders Chart
 fig, ax = plt.subplots(figsize=(16, 8))
-ax.plot(daily_orders_df["order_purchase_timestamp"], daily_orders_df["order_count"], marker='o', color="#90CAF9")
+ax.plot(daily_orders_df["order_purchase_timestamp"], daily_orders_df["order_count"], marker='o', linewidth=2, color="#90CAF9")
+ax.set_title("Grafik Pesanan Harian", fontsize=20)
 st.pyplot(fig)
+st.markdown("> **Deskripsi:** Grafik ini menunjukkan fluktuasi jumlah pesanan setiap harinya pada periode yang dipilih. Membantu melihat tren lonjakan transaksi pada tanggal tertentu.")
 
-# 3. Product Performance
-st.subheader("Product Performance")
-if not sum_order_items_df.empty:
-    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(35, 15))
-    sns.barplot(x="order_id", y="category", data=sum_order_items_df.sort_values(by="order_id", ascending=False).head(5), palette="Blues_d", ax=ax[0])
-    ax[0].set_title("Best Performing (Volume)", fontsize=50)
-    
-    sns.barplot(x="price", y="category", data=sum_order_items_df.head(5), palette="Blues_d", ax=ax[1])
-    ax[1].set_title("Best Performing (Revenue)", fontsize=50)
+# Section 2: Product Performance
+st.subheader("Best & Worst Performing Product")
+col_p1, col_p2 = st.columns(2)
+
+with col_p1:
+    st.write("**5 Kategori Produk Terlaris (Volume)**")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    top_v = sum_order_items_df.sort_values(by="order_id", ascending=False).head(5)
+    sns.barplot(x="order_id", y="category", data=top_v, palette="Blues_d", ax=ax)
     st.pyplot(fig)
-else:
-    st.write("Kolom kategori produk tidak ditemukan.")
 
-# 4. RFM
-st.subheader("RFM Analysis")
-col1, col2, col3 = st.columns(3)
-col1.metric("Avg Recency", value=f"{round(rfm_df.recency.mean(), 1)} Days")
-col2.metric("Avg Frequency", value=f"{round(rfm_df.frequency.mean(), 2)}")
-col3.metric("Avg Monetary", value=format_currency(rfm_df.monetary.mean(), "BRL", locale='pt_BR'))
+with col_p2:
+    st.write("**5 Kategori Produk Terendah (Volume)**")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    bot_v = sum_order_items_df.sort_values(by="order_id", ascending=True).head(5)
+    sns.barplot(x="order_id", y="category", data=bot_v, palette="Reds_d", ax=ax)
+    st.pyplot(fig)
+st.markdown("> **Deskripsi:** Perbandingan antara kategori produk yang paling diminati (biru) dan yang kurang diminati (merah) berdasarkan jumlah barang yang terjual.")
 
-st.caption('Copyright (c) 2026 | Egi Farhan')
+# Section 3: Customer Demographics
+st.subheader("Customer Demographics")
+fig, ax = plt.subplots(figsize=(16, 8))
+sns.barplot(x="customer_count", y="customer_state", data=bystate_df.head(10), palette="viridis", ax=ax)
+ax.set_title("10 Negara Bagian dengan Pelanggan Terbanyak", fontsize=20)
+st.pyplot(fig)
+st.markdown("> **Deskripsi:** Visualisasi ini memetakan konsentrasi pelanggan berdasarkan wilayah (state). Membantu strategi logistik dan pemasaran di wilayah padat pembeli.")
+
+# Section 4: RFM Analysis
+st.subheader("Best Customer Based on RFM Parameters")
+col_r1, col_r2, col_r3 = st.columns(3)
+
+with col_r1:
+    avg_recency = round(rfm_df.recency.mean(), 1)
+    st.metric("Avg Recency (Days)", value=avg_recency)
+with col_r2:
+    avg_freq = round(rfm_df.frequency.mean(), 2)
+    st.metric("Avg Frequency", value=avg_freq)
+with col_r3:
+    avg_monetary = format_currency(rfm_df.monetary.mean(), "BRL", locale='pt_BR')
+    st.metric("Avg Monetary", value=avg_monetary)
+
+# Visualisasi RFM
+fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(35, 15))
+colors = ["#90CAF9"] * 5
+
+# Recency
+top_rec = rfm_df.sort_values(by="recency", ascending=True).head(5)
+sns.barplot(y="recency", x="customer_id", data=top_rec, palette=colors, ax=ax[0])
+ax[0].set_title("By Recency (days)", fontsize=50)
+ax[0].set_xticklabels(top_rec.customer_id.str[:5], rotation=45, fontsize=30)
+
+# Frequency
+top_freq = rfm_df.sort_values(by="frequency", ascending=False).head(5)
+sns.barplot(y="frequency", x="customer_id", data=top_freq, palette=colors, ax=ax[1])
+ax[1].set_title("By Frequency", fontsize=50)
+ax[1].set_xticklabels(top_freq.customer_id.str[:5], rotation=45, fontsize=30)
+
+# Monetary
+top_mon = rfm_df.sort_values(by="monetary", ascending=False).head(5)
+sns.barplot(y="monetary", x="customer_id", data=top_mon, palette=colors, ax=ax[2])
+ax[2].set_title("By Monetary", fontsize=50)
+ax[2].set_xticklabels(top_mon.customer_id.str[:5], rotation=45, fontsize=30)
+
+st.pyplot(fig)
+st.markdown("> **Deskripsi:** Analisis RFM mengelompokkan pelanggan berdasarkan **Recency** (kapan terakhir belanja), **Frequency** (seberapa sering belanja), dan **Monetary** (total uang yang dihabiskan).")
+
+st.caption('Copyright (c) 2026 | Analisis Data Egi Farhan')
