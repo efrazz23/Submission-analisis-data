@@ -16,6 +16,7 @@ def load_data():
         return None
     try:
         df = pd.read_csv(file_path)
+        # Pastikan kolom waktu adalah datetime agar filter berfungsi
         if 'order_purchase_timestamp' in df.columns:
             df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'], errors='coerce')
         return df.dropna(subset=['order_purchase_timestamp'])
@@ -24,40 +25,44 @@ def load_data():
 
 all_df = load_data()
 
-# --- 2. LOGIKA UTAMA & FILTERING ---
+# --- 2. LOGIKA SIDEBAR & FILTERING ---
 if all_df is not None:
     with st.sidebar:
-        # Logo Resmi Dicoding Collection
+        # FIX LOGO: Menggunakan URL resmi Dicoding agar tidak pecah/hilang
         st.image("https://raw.githubusercontent.com/dicodingacademy/dicoding_datasets/main/logo_dicoding_collection.png", width=150)
         st.title("🛒 E-Commerce Dashboard")
         
         min_date, max_date = all_df["order_purchase_timestamp"].min(), all_df["order_purchase_timestamp"].max()
-        st.write("**Filter Rentang Waktu**")
         
-        # Mengambil input tanggal dari user
-        date_range = st.date_input(
-            label="Pilih Rentang Waktu",
-            value=[min_date, max_date],
-            min_value=min_date,
-            max_value=max_date
-        )
-        
-    # --- KRUSIAL: Mendefinisikan main_df agar tidak NameError ---
+        # Mengambil input rentang waktu dari user
+        try:
+            date_range = st.date_input(
+                label='Rentang Waktu',
+                min_value=min_date,
+                max_value=max_date,
+                value=[min_date, max_date]
+            )
+        except:
+            date_range = [min_date, max_date]
+
+    # --- KRUSIAL: Filter Data Berdasarkan Input ---
     if isinstance(date_range, list) and len(date_range) == 2:
         start_date, end_date = date_range
+        # main_df inilah yang harus digunakan untuk SEMUA grafik di bawah
         main_df = all_df[(all_df["order_purchase_timestamp"] >= pd.to_datetime(start_date)) & 
                          (all_df["order_purchase_timestamp"] <= pd.to_datetime(end_date))]
     else:
         main_df = all_df
 
-    # --- 3. HEADER DASHBOARD ---
-    st.title("📊 Dashboard Analisis E-Commerce")
-    st.markdown(f"Menampilkan data dari periode: **{main_df['order_purchase_timestamp'].min().date()}** hingga **{main_df['order_purchase_timestamp'].max().date()}**")
+    # --- 3. DASHBOARD UTAMA ---
+    st.title("📊 Performa E-Commerce")
+    st.write(f"Data di bawah difilter untuk periode: **{main_df['order_purchase_timestamp'].min().date()}** s/d **{main_df['order_purchase_timestamp'].max().date()}**")
 
-    # --- 4. PERTANYAAN 1: REVENUE PER STATE & CATEGORY ---
+    # --- 4. VISUALISASI 1: TOP REVENUE PER STATE ---
     st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
-    cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
     
+    # Gunakan main_df (Hasil filter)
+    cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
     top_5_states = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
     top_states_df = main_df[main_df['customer_state'].isin(top_5_states)]
     
@@ -66,26 +71,20 @@ if all_df is not None:
     top_product_state['label'] = top_product_state['customer_state'] + " (" + top_product_state[cat_col] + ")"
     top_product_state = top_product_state.sort_values(by='price', ascending=False)
 
-    col_chart1, col_insight1 = st.columns([2, 1])
-    with col_chart1:
+    col1, col2 = st.columns([2, 1])
+    with col1:
         fig, ax = plt.subplots(figsize=(10, 6))
-        # PRINSIP INTEGRITAS: Highlight Biru untuk yang tertinggi, sisanya Abu-abu
-        colors_1 = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(top_product_state))]
-        sns.barplot(x='price', y='label', data=top_product_state, palette=colors_1, ax=ax)
-        ax.set_title("Kategori dengan Revenue Tertinggi di 5 State Terbesar", fontsize=15)
-        ax.set_xlabel("Total Revenue (BRL)")
-        ax.set_ylabel(None)
+        # Highlight satu warna untuk pemenang (Prinsip Integritas Visual)
+        colors = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(top_product_state))]
+        sns.barplot(x='price', y='label', data=top_product_state, palette=colors, ax=ax)
+        ax.set_title("Top Revenue per State & Category", fontsize=15)
         st.pyplot(fig)
     
-    with col_insight1:
-        st.write("### 📌 Insight Wilayah")
-        st.markdown("""
-        * **Pusat Ekonomi:** Negara bagian **SP (São Paulo)** mendominasi mutlak pendapatan.
-        * **Kategori Unggulan:** **Bed Bath Table** menjadi penggerak utama di wilayah padat.
-        * **Visualisasi:** Batang biru menonjolkan wilayah dengan performa terbaik untuk membantu pengambilan keputusan cepat.
-        """)
+    with col2:
+        st.write("### 📌 Insight")
+        st.info(f"Total revenue pada periode ini adalah **BRL {main_df['price'].sum():,.2f}**")
 
-    # --- 5. PERTANYAAN 2: AOV ANALYSIS ---
+    # --- 5. VISUALISASI 2: AOV ANALYSIS ---
     st.header("2. Average Order Value (AOV) 'Bed Bath Table'")
     cama_df = main_df[main_df[cat_col] == 'bed_bath_table']
     
@@ -94,60 +93,11 @@ if all_df is not None:
         aov_data['AOV'] = aov_data['price'] / aov_data['order_id']
         aov_data = aov_data.sort_values('AOV', ascending=False).head(10).reset_index()
 
-        col_chart2, col_insight2 = st.columns([2, 1])
-        with col_chart2:
-            fig2, ax2 = plt.subplots(figsize=(10, 6))
-            colors_2 = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(aov_data))]
-            sns.barplot(x='AOV', y='customer_state', data=aov_data, palette=colors_2, ax=ax2)
-            ax2.set_title("Top 10 State by AOV (Bed Bath Table)", fontsize=15)
-            ax2.set_xlabel("Rata-rata Nilai Transaksi (BRL)")
-            st.pyplot(fig2)
-        
-        with col_insight2:
-            st.write("### 📈 AOV Discovery")
-            st.success(f"**{aov_data.customer_state.iloc[0]}** memiliki daya beli tertinggi per transaksi.")
-            st.markdown("Hal ini menunjukkan potensi pasar premium di wilayah tersebut.")
-
-    # --- 6. RFM ANALYSIS ---
-    st.markdown("---")
-    st.header("🎯 Analisis Lanjutan: RFM Analysis")
-    
-    rfm_df = main_df.groupby(by="customer_id", as_index=False).agg({
-        "order_purchase_timestamp": "max",
-        "order_id": "nunique",
-        "price": "sum"
-    })
-    rfm_df.columns = ["customer_id", "max_order_timestamp", "frequency", "monetary"]
-    recent_date = main_df["order_purchase_timestamp"].max()
-    rfm_df["recency"] = rfm_df["max_order_timestamp"].apply(lambda x: (recent_date - x).days)
-
-    col_r, col_f, col_m = st.columns(3)
-    def short_id(df): return df['customer_id'].str[:5] + ".."
-
-    with col_r:
-        st.write("**Best Recency (Days)**")
-        top_r = rfm_df.sort_values(by="recency", ascending=True).head(5)
-        fig, ax = plt.subplots()
-        sns.barplot(y="recency", x=short_id(top_r), data=top_r, color="#0077b6", ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
-    with col_f:
-        st.write("**Best Frequency**")
-        top_f = rfm_df.sort_values(by="frequency", ascending=False).head(5)
-        fig, ax = plt.subplots()
-        sns.barplot(y="frequency", x=short_id(top_f), data=top_f, color="#0077b6", ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
-    with col_m:
-        st.write("**Best Monetary**")
-        top_m = rfm_df.sort_values(by="monetary", ascending=False).head(5)
-        fig, ax = plt.subplots()
-        sns.barplot(y="monetary", x=short_id(top_m), data=top_m, color="#0077b6", ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        colors_aov = ["#0077b6" if i == 0 else "#D3D3D3" for i in range(len(aov_data))]
+        sns.barplot(x='AOV', y='customer_state', data=aov_data, palette=colors_aov, ax=ax2)
+        st.pyplot(fig2)
 
     st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
 else:
-    st.error("Gagal memuat file all_data.csv. Pastikan file berada di folder yang sama dengan dashboard.py.")
+    st.error("Gagal memuat file all_data.csv. Periksa apakah file ada di folder yang sama.")
