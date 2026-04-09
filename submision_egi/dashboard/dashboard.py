@@ -53,30 +53,26 @@ if all_df is not None:
 
     st.markdown("---")
 
-    # --- 4. PERTANYAAN 1: REVENUE & STATE ---
+  # --- 4. PERTANYAAN 1: REVENUE PER STATE & PRODUCT ---
     st.header("1. Profitabilitas Produk Berdasarkan Wilayah")
-    top_5_states = main_df.groupby('customer_state')['price'].sum().sort_values(ascending=False).head(5).index
-    top_states_df = main_df[main_df['customer_state'].isin(top_5_states)]
-    cat_col = 'product_category_name_english' if 'product_category_name_english' in main_df.columns else 'product_category_name'
     
-    top_product_state = top_states_df.groupby(['customer_state', cat_col])['price'].sum().reset_index()
-    top_product_state = top_product_state.sort_values(['customer_state', 'price'], ascending=[True, False]).groupby('customer_state').head(1)
+    # ... (kode filter top_5_states tetap sama) ...
+
+    # BUAT LABEL GABUNGAN (Ini kuncinya agar sama seperti di Colab)
+    top_product_state['label'] = top_product_state['customer_state'] + " (" + top_product_state[cat_col] + ")"
     top_product_state = top_product_state.sort_values(by='price', ascending=False)
 
     col_chart1, col_insight1 = st.columns([2, 1])
     with col_chart1:
         fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(x='price', y='customer_state', data=top_product_state, palette='viridis', ax=ax)
-        ax.set_title("Top Revenue per State", fontsize=15)
+        
+        # GUNAKAN 'label' sebagai sumbu Y, bukan 'customer_state'
+        sns.barplot(x='price', y='label', data=top_product_state, palette='viridis', ax=ax)
+        
+        ax.set_title("Produk dengan Revenue Tertinggi di 5 State Terbesar", fontsize=15)
+        ax.set_xlabel("Total Revenue (BRL)")
+        ax.set_ylabel("Negara Bagian (Kategori Produk)") # Update label sumbu Y
         st.pyplot(fig)
-    
-    with col_insight1:
-        st.write("### 📌 Insight Wilayah")
-        st.markdown("""
-        * **Pusat Ekonomi:** Negara bagian **SP (São Paulo)** mendominasi mutlak pendapatan.
-        * **Kategori Unggulan:** **Bed Bath Table** menjadi penggerak utama di wilayah padat.
-        * **Saran:** Fokuskan stok dan marketing pada kategori kebutuhan personal di wilayah ekonomi tinggi.
-        """)
 
     # --- 5. PERTANYAAN 2: AOV ANALYSIS ---
     st.header("2. Analisis AOV Kategori 'Bed Bath Table'")
