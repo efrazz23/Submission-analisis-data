@@ -144,44 +144,52 @@ if all_df is not None:
     else:
         st.warning("Data kategori 'bed_bath_table' tidak ditemukan pada periode ini.")
 
-    # --- 6. ANALISIS RFM ---
-    st.markdown("---")
-    st.header("🎯 Analisis Lanjutan: RFM Analysis")
+    # --- VISUALISASI RFM (VERSI BERSIH & JELAS) ---
+st.subheader("🎯 Top 5 Customers Based on RFM Parameters")
+
+col1, col2, col3 = st.columns(3)
+
+# Fungsi kecil untuk menyingkat ID agar tidak numpuk
+def short_id(df):
+    return df['customer_id'].str[:5] + "..."
+
+with col1:
+    st.write("**Recency (Days)**")
+    top_recency = rfm_df.sort_values(by="recency", ascending=True).head(5).copy()
+    top_recency['display_id'] = short_id(top_recency) # Pake ID singkat
     
-    rfm_df = main_df.groupby(by="customer_id", as_index=False).agg({
-        "order_purchase_timestamp": "max",
-        "order_id": "nunique",
-        "price": "sum"
-    })
-    rfm_df.columns = ["customer_id", "max_order_timestamp", "frequency", "monetary"]
-    recent_date = main_df["order_purchase_timestamp"].max()
-    rfm_df["recency"] = rfm_df["max_order_timestamp"].apply(lambda x: (recent_date - x).days)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.barplot(y="recency", x="display_id", data=top_recency, palette="Blues_r", ax=ax)
+    ax.set_title("Top 5 Customers by Recency", fontsize=12)
+    ax.set_ylabel("Days since last order")
+    ax.set_xlabel("Customer ID (Inisial)")
+    st.pyplot(fig)
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.subheader("Recency (Days)")
-        top_recency = rfm_df.sort_values(by="recency", ascending=True).head(5)
-        fig, ax = plt.subplots()
-        sns.barplot(y="recency", x="customer_id", data=top_recency, palette="mako", ax=ax)
-        ax.set_xticks([])
-        st.pyplot(fig)
+with col2:
+    st.write("**Frequency**")
+    top_freq = rfm_df.sort_values(by="frequency", ascending=False).head(5).copy()
+    top_freq['display_id'] = short_id(top_freq)
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.barplot(y="frequency", x="display_id", data=top_freq, palette="Greens_r", ax=ax)
+    ax.set_title("Top 5 Customers by Frequency", fontsize=12)
+    ax.set_ylabel("Number of Orders")
+    ax.set_xlabel("Customer ID (Inisial)")
+    st.pyplot(fig)
 
-    with col2:
-        st.subheader("Frequency")
-        top_freq = rfm_df.sort_values(by="frequency", ascending=False).head(5)
-        fig, ax = plt.subplots()
-        sns.barplot(y="frequency", x="customer_id", data=top_freq, palette="mako", ax=ax)
-        ax.set_xticks([])
-        st.pyplot(fig)
+with col3:
+    st.write("**Monetary**")
+    top_money = rfm_df.sort_values(by="monetary", ascending=False).head(5).copy()
+    top_money['display_id'] = short_id(top_money)
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.barplot(y="monetary", x="display_id", data=top_money, palette="Oranges_r", ax=ax)
+    ax.set_title("Top 5 Customers by Monetary", fontsize=12)
+    ax.set_ylabel("Total Spent (BRL)")
+    ax.set_xlabel("Customer ID (Inisial)")
+    st.pyplot(fig)
 
-    with col3:
-        st.subheader("Monetary")
-        top_money = rfm_df.sort_values(by="monetary", ascending=False).head(5)
-        fig, ax = plt.subplots()
-        sns.barplot(y="monetary", x="customer_id", data=top_money, palette="mako", ax=ax)
-        ax.set_xticks([])
-        st.pyplot(fig)
-
+st.info("💡 **Catatan:** ID Pelanggan disingkat menjadi 5 karakter pertama agar tampilan grafik tetap rapi dan mudah dibaca.")
     st.caption("Copyright © 2026 | Analisis Data Egi Farhan")
 
 else:
