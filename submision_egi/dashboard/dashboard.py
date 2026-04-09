@@ -4,6 +4,32 @@ import seaborn as sns
 import streamlit as st
 import os
 
+@st.cache_data
+def load_data():
+    if not os.path.exists(file_path):
+        st.error(f"File tidak ditemukan di: {file_path}")
+        return None
+    
+    try:
+        # Cek ukuran file sebelum baca
+        if os.path.getsize(file_path) == 0:
+            st.error("Waduh! File all_data.csv ditemukan tapi isinya KOSONG (0 Bytes).")
+            return None
+            
+        df = pd.read_csv(file_path)
+        
+        if 'order_purchase_timestamp' in df.columns:
+            df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'], errors='coerce')
+        return df.dropna(subset=['order_purchase_timestamp'])
+        
+    except pd.errors.EmptyDataError:
+        st.error("Error: Pandas bilang file CSV kamu kosong!")
+        return None
+    except Exception as e:
+        st.error(f"Terjadi kesalahan: {e}")
+        return None
+
+
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="E-Commerce Analytics | Egi Farhan", layout="wide")
 
